@@ -112,6 +112,18 @@ def ask(
 
     answer_text = str(content).strip()[:MAX_ANSWER_CHARS]
     if not answer_text:
+        # Model returned something that stripped to empty — record
+        # the rejection so the chain shows the agent tried (and
+        # failed) to produce a useful answer.
+        proposals.write(
+            log,
+            agent="qa",
+            kind="chat_response",
+            input={"question": cleaned},
+            output=None,
+            confidence=0.0,
+            decision="rejected",
+        )
         return None
 
     # No native confidence channel; record an inferred mid-confidence
