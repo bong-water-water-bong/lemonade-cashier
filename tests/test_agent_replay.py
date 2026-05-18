@@ -35,6 +35,66 @@ def test_replay_omits_agent_history_when_empty(event_log):
     assert "agent_history" not in state
 
 
+def test_confirmation_flow_preserves_agent_provenance(seeded_db, event_log, monkeypatch):
+    """When a model proposes a low-confidence match that the attendant
+    confirms, the resulting cart.add MUST keep actor=agent_confirmed
+    and source=model_proposed — not silently demote to attendant/typed
+    on the second pass.
+
+    Regression test for the independent-reviewer finding that the
+    confirmation round-trip was laundering agent provenance through
+    the canonical product name."""
+
+    from lemonade_cashier.agents.lemonade_client import (
+        LemonadeConfig,
+        NormalizedPhrase,
+    )
+    from lemonade_cashier.agents.supervisor import Supervisor, SupervisorConfig
+    import lemonade_cashier.agents.supervisor as sup_mod
+
+    # Stub the Lemonade normalizer to return a candidate that resolves
+    # to a low-confidence match via substring (not exact). The cleanest
+    # way: make the model propose "appl" -> "apple". find_product("apple")
+    # would be exact (1.0 conf), so instead the model proposes a
+    # candidate that find_product resolves at the substring score
+    # (0.86) — under the 0.8 threshold default? No — 0.86 > 0.8.
+    # Make threshold tight enough that 0.86 is below it.
+    def fake_normalize(phrase, cart_shape, config):
+        return NormalizedPhrase(candidate="apples", confidence=0.55, raw={})
+
+    monkeypatch.setattr(sup_mod, "lemonade_normalize", fake_normalize)
+
+    sup = Supervisor(
+        event_log,
+        SupervisorConfig(
+            lemonade=LemonadeConfig(enabled=True),
+            confidence_threshold=0.9,  # forces "apples" (0.95 alias) below
+        ),
+        # The 0.9 threshold means even "apples" → APL001 at confidence
+        # 0.95 still triggers the model fallback path? No — 0.95 > 0.9
+        # so it auto-adds. Tighten further.
+    )
+    sup.config.confidence_threshold = 0.98  # forces the confirm gate
+
+    # First pass: model proposes, low confidence → needs_confirmation.
+    out = sup.handle_text("xyz nonsense")
+    assert out.needs_confirmation
+    assert out.candidate_source == "model_proposed"
+
+    # Second pass with the canonical name + source_hint.
+    out = sup.handle_text(
+        out.candidate_match.name,
+        confirmed=True,
+        source_hint=out.candidate_source,
+    )
+
+    # The cart line must reflect the original agent provenance.
+    items = out.state["items"]
+    assert len(items) == 1
+    assert items[0]["source"] == "model_proposed"
+    assert items[0]["actor"] == "agent_confirmed"
+
+
 def test_supervisor_unreachable_writes_proposal(seeded_db, event_log):
     """When Lemonade is enabled but unreachable, an `unreachable`
     proposal lands in the chain so investigators can distinguish

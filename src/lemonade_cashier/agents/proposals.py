@@ -55,6 +55,11 @@ Decision = Literal[
 
 ProposalKind = Literal["normalize", "chat_response", "summarize"]
 
+_DECISIONS: frozenset[str] = frozenset(
+    {"accepted", "rejected", "needs_confirmation", "unreachable", "out_of_capability"}
+)
+_KINDS: frozenset[str] = frozenset({"normalize", "chat_response", "summarize"})
+
 
 @dataclass(frozen=True)
 class Proposal:
@@ -83,13 +88,23 @@ class Proposal:
         if event.type != EVENT_TYPE:
             raise ValueError(f"expected {EVENT_TYPE} event, got {event.type}")
         p = event.payload or {}
+        kind = str(p.get("kind", ""))
+        decision = str(p.get("decision", ""))
+        if kind not in _KINDS:
+            raise ValueError(
+                f"proposal kind {kind!r} not in {sorted(_KINDS)}"
+            )
+        if decision not in _DECISIONS:
+            raise ValueError(
+                f"proposal decision {decision!r} not in {sorted(_DECISIONS)}"
+            )
         return cls(
             agent=str(p.get("agent", "?")),
-            kind=str(p.get("kind", "?")),  # type: ignore[arg-type]
+            kind=kind,  # type: ignore[arg-type]
             input=p.get("input"),
             output=p.get("output"),
             confidence=float(p.get("confidence", 0.0)),
-            decision=str(p.get("decision", "rejected")),  # type: ignore[arg-type]
+            decision=decision,  # type: ignore[arg-type]
         )
 
 
@@ -103,7 +118,22 @@ def write(
     confidence: float,
     decision: Decision,
 ) -> Event:
-    """Append one :data:`EVENT_TYPE` event. Returns the resulting Event."""
+    """Append one :data:`EVENT_TYPE` event. Returns the resulting Event.
+
+    Defense-in-depth: this function runs ``registry.assert_can_emit``
+    BEFORE writing, even though every documented caller already runs
+    its own check. The duplication is intentional — a future
+    contributor adding a new agent that calls ``write`` directly
+    cannot bypass the registry by forgetting their own pre-check.
+    The ``out_of_capability`` decision is the only exception: it's
+    used as the post-mortem record when the original capability check
+    *failed*, so the registry shouldn't gate it.
+    """
+
+    if decision != "out_of_capability":
+        from . import registry
+
+        registry.assert_can_emit(agent, kind)
 
     payload = Proposal(
         agent=agent,

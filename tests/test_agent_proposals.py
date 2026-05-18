@@ -80,6 +80,62 @@ def test_confidence_clamped_to_unit_interval(event_log):
     assert proposals.Proposal.from_event(e2).confidence == 0.0
 
 
+def test_write_enforces_registry_for_normal_decisions(event_log):
+    """proposals.write() must call assert_can_emit BEFORE writing, as
+    defense-in-depth. A future agent that imports proposals.write
+    directly cannot bypass the registry.
+
+    The only exception: decision='out_of_capability' is the
+    post-mortem record OF a capability check failure, so the registry
+    must NOT block it."""
+
+    # The Q&A agent is not allowed to emit normalize proposals.
+    # write() should raise CapabilityError.
+    with pytest.raises(registry.CapabilityError):
+        proposals.write(
+            event_log,
+            agent="qa",
+            kind="normalize",  # qa cannot do this
+            input={"phrase": "milk"},
+            output={"phrase": "milk 1 gal"},
+            confidence=0.9,
+            decision="accepted",
+        )
+
+    # But the post-mortem record IS allowed (it's how we record the failure).
+    event = proposals.write(
+        event_log,
+        agent="qa",
+        kind="normalize",
+        input={"phrase": "milk"},
+        output={"error": "out_of_capability"},
+        confidence=0.0,
+        decision="out_of_capability",
+    )
+    assert event.type == proposals.EVENT_TYPE
+
+
+def test_from_event_validates_kind_and_decision(event_log):
+    """A corrupt or future-versioned event whose kind or decision
+    doesn't match the known literal sets must raise ValueError
+    rather than producing a silently-typed-wrong Proposal."""
+
+    event_log.append(
+        proposals.EVENT_TYPE,
+        {
+            "agent": "evil",
+            "kind": "format_my_disk",  # not a known kind
+            "input": {},
+            "output": {},
+            "confidence": 1.0,
+            "decision": "accepted",
+        },
+    )
+    bad_event = event_log.read_all()[0]
+    with pytest.raises(ValueError, match="kind"):
+        proposals.Proposal.from_event(bad_event)
+
+
 def test_proposals_from_events_filters_other_types(event_log):
     """proposals_from_events ignores non-proposal events. Mixed logs
     must not produce noise."""
