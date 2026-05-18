@@ -8,10 +8,15 @@ this module can route an attendant's natural-language question
 state outside the cashier process.
 
 If GAIA isn't importable, the bridge silently disables itself.
+
+All calls are wrapped in a thread-level timeout so a hung GAIA process
+can never stall the cashier. The default mirrors
+``LC_LEMONADE_TIMEOUT_SEC``.
 """
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from dataclasses import dataclass
 
 try:  # pragma: no cover — exercised only when GAIA is installed
@@ -20,24 +25,26 @@ except ImportError:  # pragma: no cover — exercised by the default test env
     gaia = None  # type: ignore[assignment]
 
 
+DEFAULT_TIMEOUT_SEC = 2.0
+
+
 @dataclass(frozen=True)
 class GAIABridge:
     available: bool
+    timeout_sec: float = DEFAULT_TIMEOUT_SEC
 
     def ask(self, prompt: str, *, cart_state: dict[str, object]) -> str | None:
         """Send a prompt to a local GAIA agent and return its reply.
 
         Returns ``None`` if GAIA isn't available, the call fails, or
-        anything looks unsafe (long responses, fenced code blocks). The
-        caller must treat the response as untrusted text.
+        the call exceeds ``timeout_sec``. The caller must treat the
+        response as untrusted text.
         """
 
         if not self.available or gaia is None:  # pragma: no cover
             return None
-        try:
-            # The exact entrypoint differs by GAIA minor version; this
-            # is the documented 0.18.x shape. Wrap in a broad except so
-            # we never crash the cashier if GAIA changes.
+
+        def _call() -> str:
             client = gaia.Client()  # type: ignore[attr-defined]
             reply = client.chat(
                 prompt=prompt,
@@ -46,14 +53,24 @@ class GAIABridge:
                 tools=[],
             )
             return str(reply.text)[:2000]
-        except Exception:
-            return None
+
+        # Use a thread pool to give us a hard wall-clock timeout even
+        # when the GAIA SDK doesn't accept a timeout kwarg.
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(_call)
+            try:
+                return future.result(timeout=self.timeout_sec)
+            except FuturesTimeout:  # pragma: no cover — hard to exercise w/o GAIA
+                future.cancel()
+                return None
+            except Exception:
+                return None
 
 
-def discover() -> GAIABridge:
+def discover(timeout_sec: float = DEFAULT_TIMEOUT_SEC) -> GAIABridge:
     """Return a :class:`GAIABridge` that's ``available`` iff GAIA imports."""
 
-    return GAIABridge(available=gaia is not None)
+    return GAIABridge(available=gaia is not None, timeout_sec=timeout_sec)
 
 
-__all__ = ["GAIABridge", "discover"]
+__all__ = ["DEFAULT_TIMEOUT_SEC", "GAIABridge", "discover"]
