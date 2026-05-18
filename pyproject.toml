@@ -40,8 +40,8 @@ lemonade = [
 lemonade-cashier = "lemonade_cashier.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/bcloud/lemonade-cashier"
-Issues = "https://github.com/bcloud/lemonade-cashier/issues"
+Homepage = "https://github.com/bong-water-water-bong/lemonade-cashier"
+Issues = "https://github.com/bong-water-water-bong/lemonade-cashier/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
