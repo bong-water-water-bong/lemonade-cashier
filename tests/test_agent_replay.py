@@ -98,21 +98,39 @@ def test_confirmation_flow_preserves_agent_provenance(seeded_db, event_log, monk
 def test_supervisor_unreachable_writes_proposal(seeded_db, event_log):
     """When Lemonade is enabled but unreachable, an `unreachable`
     proposal lands in the chain so investigators can distinguish
-    'agent tried and failed' from 'agent was never asked'."""
+    'agent tried and failed' from 'agent was never asked'.
+
+    Also asserts the call returns within the configured timeout
+    budget — a hung connect should not block the cashier loop.
+    Qodo flagged this as a testability rule violation when the
+    timeout assertion was missing."""
+
+    import time
 
     from lemonade_cashier.agents.lemonade_client import LemonadeConfig
     from lemonade_cashier.agents.supervisor import Supervisor, SupervisorConfig
 
+    timeout_sec = 0.25
     sup = Supervisor(
         event_log,
         SupervisorConfig(
             lemonade=LemonadeConfig(
-                url="http://127.0.0.1:1", timeout_sec=0.25, enabled=True
+                url="http://127.0.0.1:1", timeout_sec=timeout_sec, enabled=True
             )
         ),
     )
+    start = time.monotonic()
     sup.handle_text("zzz nonsense")  # no inventory match, triggers fallback
+    elapsed = time.monotonic() - start
+
+    # The single fallback path opens at most two sockets (Lemonade, then
+    # FLM). FLM is disabled by default, so only Lemonade tries. Budget
+    # is the configured timeout + generous slack for connect-refused
+    # overhead. If this ever runs over, something is hanging instead
+    # of bouncing off the closed socket.
+    assert elapsed < timeout_sec + 2.0, (
+        f"unreachable call took {elapsed:.2f}s > budget {timeout_sec + 2.0}s"
+    )
 
     history = proposals.proposals_from_events(event_log.read_all())
-    # Lemonade enabled but unreachable → "unreachable" proposal recorded.
     assert any(p.agent == "lemonade" and p.decision == "unreachable" for p in history)
