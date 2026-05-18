@@ -10,9 +10,12 @@ Run with::
 from __future__ import annotations
 
 import json
+import logging
 import os
 from decimal import Decimal
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from .agents.lemonade_client import LemonadeConfig
 from .agents.flm_client import FLMConfig
@@ -106,6 +109,11 @@ def main() -> None:  # pragma: no cover — interactive loop, exercised by smoke
             try:
                 state = replay_log(log_path).to_state()
             except Exception:
+                logger.error(
+                    "replay failed for log %s; falling back to live state",
+                    log_path,
+                    exc_info=True,
+                )
                 state = outcome.state
             receipt = render_state_safe(state)
             saved_path = save(receipt, receipt_dir)
