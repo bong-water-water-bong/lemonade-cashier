@@ -201,17 +201,24 @@ class Supervisor:
                     if normalized_match is not None:
                         match = normalized_match
                         source = "model_proposed"
+                        # `confirmed=True` wins over the confidence check.
+                        # Without this the proposal would still read
+                        # "needs_confirmation" on the second pass, even
+                        # though the supervisor is about to accept.
+                        # Decision must mirror what the supervisor
+                        # actually does, not a stale snapshot.
+                        if confirmed:
+                            _decision = "accepted"
+                        elif match.confidence >= self.config.confidence_threshold:
+                            _decision = "accepted"
+                        else:
+                            _decision = "needs_confirmation"
                         self._record_normalizer_proposal(
                             agent=agent_name,
                             input_phrase=event.text,
                             output_phrase=normalized.candidate,
                             confidence=normalized.confidence,
-                            decision=(
-                                "accepted"
-                                if match.confidence
-                                >= self.config.confidence_threshold
-                                else "needs_confirmation"
-                            ),
+                            decision=_decision,  # see _decision above
                         )
                     else:
                         self._record_normalizer_proposal(
