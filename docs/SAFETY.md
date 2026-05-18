@@ -108,3 +108,4 @@ agentic commerce. When it does, those three sentences become tests in
 - A new policy threshold → `safety/policy.py` + `.env.example`.
 - A new event type's auditability → `tests/test_replay.py`.
 - A new actor → the permission table in [`AGENTS.md`](../AGENTS.md).
+
