@@ -110,6 +110,16 @@ class Supervisor:
             return self._tender(event.amount or "0")
         if event.action == "close":
             return self._close()
+        if event.action == "bag.seal":
+            return self._bag_seal(event.amount or "0")
+        if event.action == "bag.handoff":
+            return self._bag_handoff(event.bag_id or "", event.carrier_id or "")
+        if event.action == "bag.receive":
+            return self._bag_receive(
+                event.bag_id or "", event.carrier_id or "", event.amount or "0"
+            )
+        if event.action == "bag.reconcile":
+            return self._bag_reconcile(event.bag_id or "")
         if event.action == "add_product":
             return self._add_product(event, confirmed=confirmed)
 
@@ -242,6 +252,104 @@ class Supervisor:
         self._opened = False
         self._voids_in_txn = 0
         return outcome
+
+    # ------------------------------------------------------------------
+    # CIT bag handlers
+    # ------------------------------------------------------------------
+
+    def _bag_seal(self, amount: str) -> SupervisorOutcome:
+        """`bag seal <amount>` — single-denomination manifest at $100 bills.
+
+        For richer manifests use the bags API directly; the CLI grammar
+        keeps the verb simple. The resulting bag_id is included in the
+        outcome message so the operator can copy it for the handoff.
+        """
+
+        from ..safety.bags import DenominationCount, Manifest, BagError, seal_bag
+
+        try:
+            amt = to_money(amount)
+            # Break into $100 bills for the demo manifest; partial dollar
+            # amounts use $0.01 entries to keep the math exact.
+            denom = Decimal("100.00") if amt >= Decimal("100.00") else Decimal("0.01")
+            count = int(amt / denom)
+            manifest = Manifest(
+                entries=(DenominationCount(denomination=denom, count=count),)
+            )
+            event = seal_bag(self.log, self.config.attendant_id, manifest)
+        except BagError as exc:
+            return self._outcome(f"seal rejected: {exc}")
+        bag_id = str(event.payload.get("bag_id", ""))
+        return self._outcome(f"sealed bag {bag_id} for ${money_str(amt)}")
+
+    def _bag_handoff(self, bag_id: str, carrier_id: str) -> SupervisorOutcome:
+        from ..safety.bags import BagError, handoff_bag
+
+        if not bag_id or not carrier_id:
+            return self._outcome("usage: bag handoff <bag_id> <carrier_id>")
+        try:
+            handoff_bag(
+                self.log,
+                bag_id,
+                attendant_id=self.config.attendant_id,
+                carrier_id=carrier_id,
+            )
+        except BagError as exc:
+            return self._outcome(f"handoff rejected: {exc}")
+        return self._outcome(f"handed off {bag_id} to {carrier_id}")
+
+    def _bag_receive(
+        self, bag_id: str, carrier_id: str, counted_amount: str
+    ) -> SupervisorOutcome:
+        """Carrier records the counted total, then we automatically emit
+        reconciled or discrepancy based on the comparison to the
+        manifest. This is convenience: a real counting authority would
+        call receive_bag and then reconcile_bag / flag_discrepancy on
+        their own."""
+
+        from ..safety.bags import (
+            BagError,
+            bags_from_events,
+            flag_discrepancy,
+            receive_bag,
+            reconcile_bag,
+        )
+
+        if not bag_id or not carrier_id:
+            return self._outcome("usage: bag receive <bag_id> <carrier_id> <counted>")
+        try:
+            counted = to_money(counted_amount)
+            receive_bag(self.log, bag_id, carrier_id=carrier_id, counted_total=counted)
+        except BagError as exc:
+            return self._outcome(f"receive rejected: {exc}")
+
+        # Decide reconciled vs discrepancy by looking at the freshly
+        # updated event log — the manifest_total is recorded on the
+        # original cit.bag.sealed event.
+        snapshot = bags_from_events(self.log.read_all()).get(bag_id)
+        if snapshot is None or snapshot.manifest_total is None:
+            return self._outcome(f"received {bag_id} but no manifest found")
+        delta = counted - snapshot.manifest_total
+        if delta == Decimal("0.0000"):
+            reconcile_bag(self.log, bag_id)
+            return self._outcome(f"reconciled {bag_id}: ${money_str(counted)} matches manifest")
+        flag_discrepancy(self.log, bag_id, delta=delta)
+        sign = "over" if delta > 0 else "short"
+        return self._outcome(
+            f"discrepancy on {bag_id}: counted ${money_str(counted)} vs manifest "
+            f"${money_str(snapshot.manifest_total)} ({sign} ${money_str(abs(delta))})"
+        )
+
+    def _bag_reconcile(self, bag_id: str) -> SupervisorOutcome:
+        from ..safety.bags import BagError, reconcile_bag
+
+        if not bag_id:
+            return self._outcome("usage: bag reconcile <bag_id>")
+        try:
+            reconcile_bag(self.log, bag_id)
+        except BagError as exc:
+            return self._outcome(f"reconcile rejected: {exc}")
+        return self._outcome(f"reconciled {bag_id}")
 
     # ------------------------------------------------------------------
     # Helpers

@@ -53,6 +53,9 @@ class ParsedEvent:
     quantity: int = 1
     sku: str | None = None
     amount: str | None = None  # money string ("5.00") for tender actions
+    bag_id: str | None = None
+    carrier_id: str | None = None
+    args: tuple[str, ...] = ()  # extra positional tokens (e.g. denominations)
 
 
 def parse_event(raw_text: str) -> ParsedEvent:
@@ -95,6 +98,34 @@ def parse_event(raw_text: str) -> ParsedEvent:
 
     if text in {"close", "done", "checkout"}:
         return ParsedEvent(action="close")
+
+    # CIT bag verbs. Grammar:
+    #   bag seal <amount>                            (auto-generated bag_id + seal_id)
+    #   bag handoff <bag_id> <carrier_id>
+    #   bag receive <bag_id> <carrier_id> <counted>
+    #   bag reconcile <bag_id>
+    if text.startswith("bag "):
+        tokens = text.split()
+        if len(tokens) >= 2:
+            verb = tokens[1]
+            rest = tokens[2:]
+            if verb == "seal" and len(rest) == 1:
+                amount = rest[0].lstrip("$")
+                return ParsedEvent(action="bag.seal", amount=amount)
+            if verb == "handoff" and len(rest) == 2:
+                return ParsedEvent(
+                    action="bag.handoff", bag_id=rest[0], carrier_id=rest[1]
+                )
+            if verb == "receive" and len(rest) == 3:
+                return ParsedEvent(
+                    action="bag.receive",
+                    bag_id=rest[0],
+                    carrier_id=rest[1],
+                    amount=rest[2].lstrip("$"),
+                )
+            if verb == "reconcile" and len(rest) == 1:
+                return ParsedEvent(action="bag.reconcile", bag_id=rest[0])
+        return ParsedEvent(action="help")
 
     words = text.split()
     if len(words) >= 3 and words[-2:] == ["of", "those"]:

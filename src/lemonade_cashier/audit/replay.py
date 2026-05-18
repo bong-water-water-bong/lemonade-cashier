@@ -65,6 +65,28 @@ class ReplayState:
             state["change"] = money_str(self.change)
         if self.cit_events:
             state["cit"] = list(self.cit_events)
+        # Aggregate bag snapshots from the cit.bag.* subset. Lives next
+        # to `cit` so consumers can render in-flight bags without
+        # walking the event list themselves.
+        if any(e.get("type", "").startswith("cit.bag.") for e in self.cit_events):
+            from ..safety.bags import bags_from_events
+            from .eventlog import Event
+
+            synthetic = [
+                Event(
+                    seq=int(e["seq"]),
+                    ts=str(e.get("ts", "")),
+                    type=str(e["type"]),
+                    payload=e["payload"],  # type: ignore[arg-type]
+                    prev="",
+                    hash="",
+                )
+                for e in self.cit_events
+            ]
+            state["bags"] = {
+                bag_id: snap.to_state()
+                for bag_id, snap in bags_from_events(synthetic).items()
+            }
         if self.unknown_events:
             state["unknown_events"] = list(self.unknown_events)
         return state

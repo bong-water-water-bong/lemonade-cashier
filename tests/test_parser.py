@@ -65,6 +65,44 @@ def test_tender_rejects_empty_amount():
     assert parse_event("tender ").action == "help"
 
 
+def test_bag_seal_grammar():
+    event = parse_event("bag seal 500")
+    assert event.action == "bag.seal"
+    assert event.amount == "500"
+    # Strips a leading dollar sign too.
+    event = parse_event("bag seal $250.50")
+    assert event.amount == "250.50"
+
+
+def test_bag_handoff_grammar():
+    event = parse_event("bag handoff bag-abc carrier-1")
+    assert event.action == "bag.handoff"
+    assert event.bag_id == "bag-abc"
+    assert event.carrier_id == "carrier-1"
+
+
+def test_bag_receive_grammar():
+    event = parse_event("bag receive bag-abc carrier-1 99.50")
+    assert event.action == "bag.receive"
+    assert event.bag_id == "bag-abc"
+    assert event.carrier_id == "carrier-1"
+    assert event.amount == "99.50"
+
+
+def test_bag_reconcile_grammar():
+    event = parse_event("bag reconcile bag-abc")
+    assert event.action == "bag.reconcile"
+    assert event.bag_id == "bag-abc"
+
+
+def test_bag_malformed_returns_help():
+    # Missing arguments → return help, not silently apply.
+    assert parse_event("bag seal").action == "help"
+    assert parse_event("bag handoff bag-1").action == "help"
+    assert parse_event("bag receive bag-1 c1").action == "help"
+    assert parse_event("bag random-verb").action == "help"
+
+
 def test_close():
     assert parse_event("close").action == "close"
     assert parse_event("done").action == "close"
