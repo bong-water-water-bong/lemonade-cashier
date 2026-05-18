@@ -63,6 +63,18 @@ def test_manifest_payload_roundtrips():
     assert restored.total == m.total
 
 
+def test_manifest_from_payload_robust_against_malformed():
+    # Wrong shape entirely.
+    with pytest.raises(BagError, match="must be a list"):
+        Manifest.from_payload("not a list")
+    # Missing key.
+    with pytest.raises(BagError, match="missing required key"):
+        Manifest.from_payload([{"denomination": "1.00"}])
+    # Bad value type.
+    with pytest.raises(BagError, match="invalid value"):
+        Manifest.from_payload([{"denomination": "x", "count": 1}])
+
+
 # --------------------------------------------------------------------------
 # Seal
 # --------------------------------------------------------------------------
@@ -97,6 +109,41 @@ def test_handoff_requires_distinct_parties(event_log):
     bag_id = event.payload["bag_id"]
     with pytest.raises(BagError, match="two-party"):
         handoff_bag(event_log, bag_id, attendant_id="alice", carrier_id="alice")
+
+
+def test_handoff_two_party_rule_is_case_insensitive(event_log):
+    """A capitalization trick — bag handoff X Alice when the attendant_id
+    is 'alice' — must still be rejected. Both sides canonicalize to
+    casefold before comparison."""
+
+    event = seal_bag(event_log, "Alice", _full_manifest("100.00"))
+    bag_id = event.payload["bag_id"]
+    with pytest.raises(BagError, match="two-party"):
+        handoff_bag(event_log, bag_id, attendant_id="alice", carrier_id="ALICE")
+    with pytest.raises(BagError, match="two-party"):
+        handoff_bag(event_log, bag_id, attendant_id="Alice", carrier_id="  alice  ")
+
+
+def test_handoff_persists_canonical_ids(event_log):
+    event = seal_bag(event_log, "  Alice  ", _full_manifest("100.00"))
+    bag_id = event.payload["bag_id"]
+    handed = handoff_bag(event_log, bag_id, attendant_id="Alice", carrier_id="BoB")
+    assert handed.payload["attendant"] == "alice"
+    assert handed.payload["carrier"] == "bob"
+
+
+def test_seal_rejects_empty_attendant(event_log):
+    with pytest.raises(BagError, match="non-empty"):
+        seal_bag(event_log, "  ", _full_manifest("100.00"))
+    with pytest.raises(BagError, match="non-empty"):
+        seal_bag(event_log, "", _full_manifest("100.00"))
+
+
+def test_handoff_rejects_empty_carrier(event_log):
+    event = seal_bag(event_log, "alice", _full_manifest("100.00"))
+    bag_id = event.payload["bag_id"]
+    with pytest.raises(BagError, match="non-empty"):
+        handoff_bag(event_log, bag_id, attendant_id="alice", carrier_id="   ")
 
 
 def test_handoff_requires_sealed_bag(event_log):

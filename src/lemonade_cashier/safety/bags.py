@@ -102,15 +102,24 @@ class Manifest:
         if not isinstance(payload, list):
             raise BagError(f"manifest payload must be a list, got {type(payload).__name__}")
         entries: list[DenominationCount] = []
-        for item in payload:
+        for index, item in enumerate(payload):
             if not isinstance(item, dict):
-                raise BagError("manifest entries must be dicts")
-            entries.append(
-                DenominationCount(
-                    denomination=to_money(item["denomination"]),
-                    count=int(item["count"]),
+                raise BagError(f"manifest entry {index} must be a dict")
+            try:
+                entries.append(
+                    DenominationCount(
+                        denomination=to_money(item["denomination"]),
+                        count=int(item["count"]),
+                    )
                 )
-            )
+            except KeyError as exc:
+                raise BagError(
+                    f"manifest entry {index} missing required key {exc}"
+                ) from exc
+            except (TypeError, ValueError) as exc:
+                raise BagError(
+                    f"manifest entry {index} has invalid value: {exc}"
+                ) from exc
         return cls(entries=tuple(entries))
 
 
@@ -159,6 +168,26 @@ class BagSnapshot:
 # --------------------------------------------------------------------------
 
 
+def _canonicalize_actor_id(value: object, *, field_name: str) -> str:
+    """Strip whitespace + casefold an actor id, rejecting empty values.
+
+    Two-party verification compares ``attendant_id`` to ``carrier_id``;
+    if the CLI parser case-folds one side and not the other (which it
+    does — see ``agents/parser.py``), a hostile or sloppy operator can
+    bypass the rule simply by typing the carrier_id in a different case
+    than the attendant_id is stored in. We canonicalize both sides at
+    the policy boundary, in this module, so the rule holds regardless
+    of how the surface layer normalizes input.
+    """
+
+    if not isinstance(value, str):
+        raise BagError(f"{field_name} must be a string; got {type(value).__name__}")
+    cleaned = value.strip().casefold()
+    if not cleaned:
+        raise BagError(f"{field_name} must be a non-empty, non-whitespace string")
+    return cleaned
+
+
 def seal_bag(
     log: EventLog,
     attendant_id: str,
@@ -174,6 +203,7 @@ def seal_bag(
     :class:`BagError`.
     """
 
+    attendant_canon = _canonicalize_actor_id(attendant_id, field_name="attendant_id")
     if manifest.total <= ZERO:
         raise BagError(
             f"manifest total must be > 0; got ${money_str(manifest.total)}"
@@ -189,7 +219,7 @@ def seal_bag(
         {
             "bag_id": final_bag_id,
             "seal_id": final_seal_id,
-            "attendant": attendant_id,
+            "attendant": attendant_canon,
             "manifest_total": money_str(manifest.total),
             "manifest": manifest.to_payload(),
         },
@@ -203,20 +233,29 @@ def handoff_bag(
     attendant_id: str,
     carrier_id: str,
 ) -> Event:
-    """Cashier hands a sealed bag to a carrier (two-party verification)."""
+    """Cashier hands a sealed bag to a carrier (two-party verification).
 
-    if not carrier_id or not attendant_id:
-        raise BagError("both attendant_id and carrier_id are required for handoff")
-    if attendant_id == carrier_id:
-        raise BagError("carrier_id must differ from attendant_id (two-party rule)")
+    Both ids are stripped + casefolded before the equality check so
+    capitalization tricks ("Alice" vs "alice") cannot defeat the
+    two-party rule. The canonical form is what's persisted to the
+    event log.
+    """
+
+    attendant_canon = _canonicalize_actor_id(attendant_id, field_name="attendant_id")
+    carrier_canon = _canonicalize_actor_id(carrier_id, field_name="carrier_id")
+    if attendant_canon == carrier_canon:
+        raise BagError(
+            "carrier_id must differ from attendant_id (two-party rule); "
+            f"both canonicalized to {attendant_canon!r}"
+        )
     current = _current_status(log, bag_id)
     _require_transition(current, "handoff", bag_id)
     return log.append(
         "cit.bag.handoff",
         {
             "bag_id": bag_id,
-            "attendant": attendant_id,
-            "carrier": carrier_id,
+            "attendant": attendant_canon,
+            "carrier": carrier_canon,
         },
     )
 
@@ -239,6 +278,7 @@ def receive_bag(
     the discrepancy resolution takes hours.
     """
 
+    carrier_canon = _canonicalize_actor_id(carrier_id, field_name="carrier_id")
     counted = to_money(counted_total)
     if counted < ZERO:
         raise BagError(f"counted_total must be >= 0; got ${money_str(counted)}")
@@ -248,7 +288,7 @@ def receive_bag(
         "cit.bag.received",
         {
             "bag_id": bag_id,
-            "carrier": carrier_id,
+            "carrier": carrier_canon,
             "counted_total": money_str(counted),
             "tolerance": money_str(to_money(tolerance)),
         },

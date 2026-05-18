@@ -258,24 +258,29 @@ class Supervisor:
     # ------------------------------------------------------------------
 
     def _bag_seal(self, amount: str) -> SupervisorOutcome:
-        """`bag seal <amount>` — single-denomination manifest at $100 bills.
+        """`bag seal <amount>` — manifest broken into standard US denominations.
 
-        For richer manifests use the bags API directly; the CLI grammar
-        keeps the verb simple. The resulting bag_id is included in the
-        outcome message so the operator can copy it for the handoff.
+        Uses the same greedy-break algorithm as :func:`core.cash.compute_change`
+        so the manifest *exactly* equals the requested amount, regardless of
+        whether ``amount`` is a round dollar value. Previously this verb
+        truncated to whole $100 bills, which made any non-round amount
+        appear as a discrepancy at receive time — a fraudulent audit
+        signal. The current implementation guarantees
+        ``manifest.total == amount`` to four-decimal precision.
+
+        For richer or non-US manifests use the bags API directly.
         """
 
-        from ..safety.bags import DenominationCount, Manifest, BagError, seal_bag
+        from ..core.money import MoneyError
+        from ..safety.bags import BagError, DenominationCount, Manifest, seal_bag
 
         try:
             amt = to_money(amount)
-            # Break into $100 bills for the demo manifest; partial dollar
-            # amounts use $0.01 entries to keep the math exact.
-            denom = Decimal("100.00") if amt >= Decimal("100.00") else Decimal("0.01")
-            count = int(amt / denom)
-            manifest = Manifest(
-                entries=(DenominationCount(denomination=denom, count=count),)
-            )
+        except MoneyError:
+            return self._outcome(f"seal rejected: invalid amount {amount!r}")
+
+        manifest = _build_us_manifest(amt)
+        try:
             event = seal_bag(self.log, self.config.attendant_id, manifest)
         except BagError as exc:
             return self._outcome(f"seal rejected: {exc}")
@@ -307,6 +312,7 @@ class Supervisor:
         call receive_bag and then reconcile_bag / flag_discrepancy on
         their own."""
 
+        from ..core.money import MoneyError
         from ..safety.bags import (
             BagError,
             bags_from_events,
@@ -319,6 +325,9 @@ class Supervisor:
             return self._outcome("usage: bag receive <bag_id> <carrier_id> <counted>")
         try:
             counted = to_money(counted_amount)
+        except MoneyError:
+            return self._outcome(f"receive rejected: invalid amount {counted_amount!r}")
+        try:
             receive_bag(self.log, bag_id, carrier_id=carrier_id, counted_total=counted)
         except BagError as exc:
             return self._outcome(f"receive rejected: {exc}")
@@ -369,6 +378,36 @@ class Supervisor:
 
     def _cart_shape(self) -> dict[str, Any]:
         return {"items": [line.to_state() for line in self.cart.lines]}
+
+
+def _build_us_manifest(amount: Decimal):
+    """Greedy-break ``amount`` into US denominations as a bag manifest.
+
+    Uses the same denomination set and algorithm as
+    :func:`core.cash.compute_change` so the manifest total *exactly*
+    equals ``amount``. We don't reuse compute_change directly because
+    its return type (ChangeBreakdown) isn't what bags wants — but the
+    math is identical.
+    """
+
+    from ..core.cash import DEFAULT_DENOMINATIONS
+    from ..core.money import to_display, ZERO as MONEY_ZERO
+    from ..safety.bags import DenominationCount, Manifest
+
+    remaining = to_display(amount)
+    entries: list[DenominationCount] = []
+    for denom in sorted(DEFAULT_DENOMINATIONS, reverse=True):
+        if remaining < denom:
+            continue
+        count = int(remaining // denom)
+        if count == 0:
+            continue
+        entries.append(DenominationCount(denomination=denom, count=count))
+        remaining -= denom * count
+        remaining = to_display(remaining)
+        if remaining == MONEY_ZERO:
+            break
+    return Manifest(entries=tuple(entries))
 
 
 def _line_payload(line: CartLine) -> dict[str, Any]:
