@@ -8,6 +8,7 @@ import pytest
 
 from lemonade_cashier.core.cash import (
     InsufficientTender,
+    UnmakeableChange,
     compute_change,
     is_sufficient,
 )
@@ -39,3 +40,9 @@ def test_compute_change_zero_change():
 def test_compute_change_rejects_insufficient_tender():
     with pytest.raises(InsufficientTender):
         compute_change("10.00", "9.99")
+
+
+def test_compute_change_unmakeable_raises():
+    # Only $1 bills available, change due is $0.37 — no way to break.
+    with pytest.raises(UnmakeableChange):
+        compute_change("0.63", "1.00", denominations=(Decimal("1.00"),))

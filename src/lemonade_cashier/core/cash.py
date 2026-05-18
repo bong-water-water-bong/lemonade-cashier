@@ -34,6 +34,16 @@ class InsufficientTender(ValueError):
     """Raised when ``tendered`` is less than ``total``."""
 
 
+class UnmakeableChange(ValueError):
+    """Raised when the provided denominations can't sum to the change due.
+
+    This happens only with custom denomination sets that omit a fine
+    enough unit (e.g., calling :func:`compute_change` with only
+    Decimal("1.00") bills when the change due is $0.37). The default
+    US set always satisfies the change.
+    """
+
+
 @dataclass(frozen=True)
 class ChangeBreakdown:
     """The composition of change due, in canonical US denominations."""
@@ -78,7 +88,8 @@ def compute_change(
             f"tendered {money_str(tendered_d)} < total {money_str(total_d)}"
         )
 
-    remaining = to_display(tendered_d - total_d)
+    change_due = to_display(tendered_d - total_d)
+    remaining = change_due
     breakdown: list[tuple[Decimal, int]] = []
     for denom in sorted(denominations, reverse=True):
         if remaining < denom:
@@ -91,8 +102,14 @@ def compute_change(
         remaining = to_display(remaining)
         if remaining == ZERO:
             break
+    if remaining != ZERO:
+        raise UnmakeableChange(
+            f"cannot make change for {money_str(change_due)} from "
+            f"denominations {sorted(denominations, reverse=True)}: "
+            f"{money_str(remaining)} remaining"
+        )
     return ChangeBreakdown(
-        change_due=to_display(tendered_d - total_d),
+        change_due=change_due,
         breakdown=tuple(breakdown),
     )
 
@@ -101,6 +118,7 @@ __all__ = [
     "ChangeBreakdown",
     "DEFAULT_DENOMINATIONS",
     "InsufficientTender",
+    "UnmakeableChange",
     "compute_change",
     "is_sufficient",
 ]
