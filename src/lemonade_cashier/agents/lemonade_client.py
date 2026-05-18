@@ -147,9 +147,15 @@ def chat_completions(
 
     try:
         envelope = json.loads(raw)
-        return str(envelope["choices"][0]["message"]["content"])
+        content = envelope["choices"][0]["message"]["content"]
     except (KeyError, IndexError, ValueError, TypeError):
         return None
+    # An explicit null/missing content is "model returned nothing useful" —
+    # return None rather than the literal string "None". Empty string is
+    # also "nothing", treated the same way.
+    if content is None or content == "":
+        return None
+    return str(content)
 
 
 def normalize(phrase: str, cart_shape: dict[str, Any], config: LemonadeConfig) -> NormalizedPhrase | None:
