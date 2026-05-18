@@ -43,6 +43,10 @@ rule-based primary path.
 | Lemonade Server client | ✅ | HTTP fallback parser (port 8000) |
 | FastFlowLM (NPU) client | ✅ | HTTP fallback parser (port 11434) |
 | GAIA hooks | ✅ | Optional bridge layer; install GAIA separately |
+| Agent proposal audit trail | ✅ | `agent.proposal` events tied into the hash chain |
+| Agent capability registry | ✅ | Each agent's permitted proposal kinds + actor roles |
+| Q&A agent (read-only) | ✅ | `agents.qa_agent` — answers from event log, no cart mutations |
+| EOS summarizer | ✅ | Natural-language wrapper over `safety.report` with deterministic fallback |
 | PoE camera pipeline | 🚧 stubs | Interface only — not wired to model |
 | Speech (ASR) | 🚧 stubs | Interface only |
 | Sensor fusion | 🚧 stubs | Interface only |

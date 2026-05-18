@@ -100,14 +100,33 @@ future PR can claim a layer is complete.
   supervisor account for K minutes. The lockout module surfaces the
   state from the event log alone.
 
-## 10. Agents ✅
+## 10. Agents ✅ (v2 — multi-agent security + observability)
 
 - `agents.parser` is the deterministic primary parser.
 - `agents.supervisor` orchestrates parser → DB match → optional LLM
-  fallback → confirmation gate.
-- `agents.lemonade_client` and `agents.flm_client` use stdlib
-  `urllib` with hard timeouts.
-- `agents.gaia_bridge` is an optional adapter for GAIA agents.
+  fallback → confirmation gate. Now writes `agent.proposal` events
+  alongside every model call.
+- `agents.lemonade_client` and `agents.flm_client` use stdlib `urllib`
+  with hard timeouts. Stateless RPCs — the supervisor decides the
+  proposal disposition (accepted / rejected / needs_confirmation /
+  unreachable).
+- `agents.proposals` is the canonical writer + reader for
+  `agent.proposal` events. Every model call lands in the hash chain
+  with input, output, confidence, and decision.
+- `agents.registry` declares each agent's capability surface (allowed
+  kinds + actor roles). Capability checks are enforced via
+  `assert_can_emit()` at every proposal write — adding a new
+  capability requires editing the registry.
+- `agents.qa_agent` is a read-only Q&A agent. Capability-bounded to
+  `chat_response`; cannot mutate the cart. Trims operator-only fields
+  (PIN counts, tamper detail) from the model's context.
+- `agents.summarizer` wraps the EOS report with a natural-language
+  paragraph. Falls back to a deterministic template if the model is
+  disabled or unreachable so the EOS workflow is never blocked.
+- `audit.replay` now surfaces `state.agent_history` from any
+  `agent.proposal` events so any UI can render "what the model
+  proposed vs. what the supervisor accepted" without depending on the
+  agents module.
 
 ## 11. Cameras 🚧
 

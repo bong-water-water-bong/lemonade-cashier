@@ -49,6 +49,7 @@ class ReplayState:
     change: Decimal | None = None
     cit_events: list[dict[str, object]] = field(default_factory=list)
     unknown_events: list[dict[str, object]] = field(default_factory=list)
+    agent_history: list[dict[str, object]] = field(default_factory=list)
 
     def to_state(self) -> dict[str, object]:
         totals = compute_totals(self.cart, self.tax_rate)
@@ -89,6 +90,8 @@ class ReplayState:
             }
         if self.unknown_events:
             state["unknown_events"] = list(self.unknown_events)
+        if self.agent_history:
+            state["agent_history"] = list(self.agent_history)
         return state
 
 
@@ -112,6 +115,19 @@ def replay_log(path: Path | str) -> ReplayState:
 def _apply(state: ReplayState, event: Event) -> None:
     handler = _HANDLERS.get(event.type)
     if handler is None:
+        if event.type == "agent.proposal":
+            # Agent proposals are first-class: surfaced into a
+            # dedicated state.agent_history list so a UI can render
+            # "what the model proposed vs. what the supervisor did"
+            # without depending on agents.proposals.
+            state.agent_history.append(
+                {
+                    "seq": event.seq,
+                    "ts": event.ts,
+                    "payload": event.payload,
+                }
+            )
+            return
         if event.type.startswith("cit."):
             state.cit_events.append(
                 {
