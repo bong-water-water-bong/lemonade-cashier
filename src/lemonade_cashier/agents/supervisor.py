@@ -150,16 +150,33 @@ class Supervisor:
         if match is None or match.confidence < self.config.confidence_threshold:
             # Try LLM fallbacks in order: Lemonade, then FLM. Each is a
             # *normalizer*; the result re-enters find_product.
+            #
+            # Both arms now write an agent.proposal event into the same
+            # JSONL log as the cart, so an investigator can reconstruct
+            # exactly what the model said for any cart.add downstream.
             cart_shape = self._cart_shape()
-            normalized = lemonade_normalize(event.text, cart_shape, self.config.lemonade)
-            if normalized is None:
-                normalized = flm_normalize(event.text, cart_shape, self.config.flm)
+            normalized, agent_name = self._call_normalizer(event.text, cart_shape)
 
             if normalized is not None and normalized.candidate != event.text:
                 normalized_match = find_product(normalized.candidate)
                 if normalized_match is not None:
                     match = normalized_match
                     source = "model_proposed"
+                    self._record_agent_proposal(
+                        agent=agent_name,
+                        input_phrase=event.text,
+                        output_phrase=normalized.candidate,
+                        confidence=normalized.confidence,
+                        decision="accepted" if match.confidence >= self.config.confidence_threshold else "needs_confirmation",
+                    )
+                else:
+                    self._record_agent_proposal(
+                        agent=agent_name,
+                        input_phrase=event.text,
+                        output_phrase=normalized.candidate,
+                        confidence=normalized.confidence,
+                        decision="rejected",  # model named a non-SKU; ignored
+                    )
 
         if match is None:
             return self._outcome(
@@ -420,6 +437,86 @@ class Supervisor:
     # ------------------------------------------------------------------
     # CIT bag handlers
     # ------------------------------------------------------------------
+
+    def _call_normalizer(
+        self, phrase: str, cart_shape: dict[str, Any]
+    ) -> tuple[Any, str]:
+        """Try Lemonade first, then FLM. Return (NormalizedPhrase|None, agent_name).
+
+        If both clients are disabled or unreachable, ``agent_name`` is
+        ``"none"`` and the supervisor writes no proposal event — there
+        was no model to record. This keeps the audit log honest: a
+        missing agent.proposal event means *no model was asked*, not
+        *the model was asked and ignored*.
+        """
+
+        normalized = lemonade_normalize(phrase, cart_shape, self.config.lemonade)
+        if normalized is not None:
+            return normalized, "lemonade"
+        normalized = flm_normalize(phrase, cart_shape, self.config.flm)
+        if normalized is not None:
+            return normalized, "flm"
+        # If either client is *enabled* but returned None (unreachable),
+        # record the unreachable event so the audit log shows we tried.
+        if self.config.lemonade.enabled:
+            self._record_agent_proposal(
+                agent="lemonade",
+                input_phrase=phrase,
+                output_phrase=None,
+                confidence=0.0,
+                decision="unreachable",
+            )
+        if self.config.flm.enabled:
+            self._record_agent_proposal(
+                agent="flm",
+                input_phrase=phrase,
+                output_phrase=None,
+                confidence=0.0,
+                decision="unreachable",
+            )
+        return None, "none"
+
+    def _record_agent_proposal(
+        self,
+        *,
+        agent: str,
+        input_phrase: str,
+        output_phrase: Any,
+        confidence: float,
+        decision: str,
+    ) -> None:
+        """Write an ``agent.proposal`` event. Capability-checked via the
+        registry so a misconfigured agent can't pretend to do
+        something it isn't allowed to."""
+
+        from . import proposals, registry
+
+        try:
+            registry.assert_can_emit(agent, "normalize")
+        except registry.CapabilityError:
+            # This is a programming error — log it but don't crash the
+            # cashier. Record a "rejected" proposal with the
+            # capability-violation message as the output so it's
+            # visible in the chain.
+            proposals.write(
+                self.log,
+                agent=agent,
+                kind="normalize",
+                input={"phrase": input_phrase},
+                output={"error": "out_of_capability"},
+                confidence=0.0,
+                decision="out_of_capability",
+            )
+            return
+        proposals.write(
+            self.log,
+            agent=agent,
+            kind="normalize",
+            input={"phrase": input_phrase},
+            output={"phrase": output_phrase} if output_phrase else None,
+            confidence=confidence,
+            decision=decision,  # type: ignore[arg-type]
+        )
 
     def _bag_seal(self, amount: str) -> SupervisorOutcome:
         """`bag seal <amount>` — manifest broken into standard US denominations.
