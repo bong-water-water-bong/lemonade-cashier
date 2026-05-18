@@ -27,6 +27,7 @@ from ..core.cart import Cart, CartLine
 from ..core.inventory import ProductMatch, find_product
 from ..core.money import money_str, to_money
 from ..core.totals import compute_totals
+from ..safety import lockout, pins, policy
 from .flm_client import FLMConfig, normalize as flm_normalize
 from .lemonade_client import LemonadeConfig, normalize as lemonade_normalize
 from .parser import ParsedEvent, parse_event
@@ -42,6 +43,12 @@ class SupervisorConfig:
     lemonade: LemonadeConfig = field(default_factory=LemonadeConfig)
     flm: FLMConfig = field(default_factory=FLMConfig)
     attendant_id: str = "attendant-1"
+    # If set, the supervisor will demand a PIN before high-risk close
+    # and before removing a high-value cart line. Defaults to
+    # "supervisor"; the matching PIN must exist in the pin store.
+    supervisor_id: str = "supervisor"
+    # Path to the PIN store JSON. None → use safety.pins.DEFAULT_PIN_STORE.
+    pin_store: object = None  # Path | str | None at runtime
 
 
 @dataclass
@@ -55,6 +62,12 @@ class SupervisorOutcome:
     candidate_quantity: int = 1
     done: bool = False
     tender_breakdown: dict[str, Any] | None = None
+    # When set, the caller must prompt for a supervisor PIN and re-invoke
+    # handle_text(...) with pin=<entered pin>. The handler that needed
+    # the gate is named in ``pin_for_action`` so the CLI can show the
+    # right prompt ("PIN to void large item:").
+    needs_pin: bool = False
+    pin_for_action: str | None = None
 
 
 class Supervisor:
@@ -81,7 +94,9 @@ class Supervisor:
         )
         self._opened = True
 
-    def handle_text(self, raw_text: str, *, confirmed: bool = False) -> SupervisorOutcome:
+    def handle_text(
+        self, raw_text: str, *, confirmed: bool = False, pin: str | None = None
+    ) -> SupervisorOutcome:
         self.open_transaction()
         event = parse_event(raw_text)
 
@@ -101,7 +116,7 @@ class Supervisor:
             self.log.append("cart.clear", {})
             return self._outcome("started a separate order")
         if event.action == "remove_last":
-            return self._remove_last()
+            return self._remove_last(pin=pin)
         if event.action == "remove_named":
             return self._remove_named(event.text)
         if event.action == "set_last_quantity":
@@ -191,7 +206,21 @@ class Supervisor:
         self.log.append("cart.add", _line_payload(line))
         return self._outcome(f"added {match.name} x{event.quantity}")
 
-    def _remove_last(self) -> SupervisorOutcome:
+    def _remove_last(self, *, pin: str | None = None) -> SupervisorOutcome:
+        if not self.cart.last_sku:
+            return self._outcome("nothing to remove")
+        # Compute the line total of the would-be-removed item and ask
+        # the policy layer if that triggers a supervisor-PIN gate.
+        last_line = next(
+            (line for line in self.cart.lines if line.sku == self.cart.last_sku),
+            None,
+        )
+        if last_line is not None:
+            policy_outcome = policy.can_void(last_line.line_total)
+            if policy_outcome.requires_pin:
+                pin_outcome = self._check_supervisor_pin(pin, "void_last_line")
+                if pin_outcome is not None:
+                    return pin_outcome
         removed = self.cart.remove_last()
         if removed is None:
             return self._outcome("nothing to remove")
@@ -245,13 +274,71 @@ class Supervisor:
             tender_breakdown=change.to_state(),
         )
 
-    def _close(self) -> SupervisorOutcome:
+    def _close(self, *, pin: str | None = None) -> SupervisorOutcome:
         self.log.append("transaction.close", {})
         outcome = self._outcome("transaction closed", done=True)
         self.cart.clear()
         self._opened = False
         self._voids_in_txn = 0
         return outcome
+
+    # ------------------------------------------------------------------
+    # Supervisor-PIN gate
+    # ------------------------------------------------------------------
+
+    def _check_supervisor_pin(
+        self, pin: str | None, action: str
+    ) -> SupervisorOutcome | None:
+        """Verify a supervisor PIN before a privileged action.
+
+        Returns:
+            ``None`` if no PIN gate is needed *or* the supplied PIN is
+            correct — the caller should proceed.
+            A populated :class:`SupervisorOutcome` (with ``needs_pin``
+            or a denial message) otherwise — the caller must abort and
+            return the outcome verbatim.
+        """
+
+        # First: is the supervisor account locked out?
+        lockout_state = lockout.state_for(self.log, self.config.supervisor_id)
+        if lockout_state.is_locked:
+            return self._outcome(
+                f"{self.config.supervisor_id!r} is locked out until "
+                f"{lockout_state.locked_until!s}; cannot {action}"
+            )
+
+        if pin is None:
+            return SupervisorOutcome(
+                message=f"supervisor PIN required to {action}",
+                state=self._state(),
+                needs_pin=True,
+                pin_for_action=action,
+            )
+
+        ok = pins.verify_pin(
+            self.config.supervisor_id, pin, path=self.config.pin_store
+        )
+        try:
+            lockout.record_pin_attempt(
+                self.log, self.config.supervisor_id, success=ok
+            )
+        except lockout.LockoutError as exc:
+            # Reached the lockout limit on this attempt; surface it.
+            return self._outcome(f"PIN attempt rejected: {exc}")
+        if not ok:
+            return self._outcome("incorrect supervisor PIN")
+        return None  # success — caller proceeds
+
+    # ------------------------------------------------------------------
+    # End-of-shift report
+    # ------------------------------------------------------------------
+
+    def report(self) -> dict[str, Any]:
+        """Build and return the end-of-shift report from the event log."""
+
+        from ..safety.report import build
+
+        return build(self.log).state
 
     # ------------------------------------------------------------------
     # CIT bag handlers

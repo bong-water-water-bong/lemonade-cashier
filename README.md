@@ -34,6 +34,11 @@ rule-based primary path.
 | CIT (cash-in-transit) | ✅ | Drops, pickups, till counts, two-person rule |
 | CIT bags (chain of custody) | ✅ | Sealed → handoff → received → reconciled/discrepancy |
 | Safety / risk scoring | ✅ | `safety.risk` |
+| Safety: hashed PIN store | ✅ | PBKDF2-SHA256 200k, constant-time compare |
+| Safety: PIN-failure lockout | ✅ | Event-projected per-attendant |
+| Safety: per-attendant profile | ✅ | Voids, low-conf, discrepancies |
+| Safety: tamper detection | ✅ | Clock skew, quiet gaps, open/close imbalance |
+| Safety: end-of-shift report | ✅ | JSON + 80-col text |
 | Agent supervisor (multi-agent) | ✅ | Permission states per actor |
 | Lemonade Server client | ✅ | HTTP fallback parser (port 8000) |
 | FastFlowLM (NPU) client | ✅ | HTTP fallback parser (port 11434) |

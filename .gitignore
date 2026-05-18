@@ -55,6 +55,8 @@ data/audit/
 .env
 .env.*
 !.env.example
+data/pins.json
+data/pins.json.tmp
 
 # Local config
 *.local.yaml

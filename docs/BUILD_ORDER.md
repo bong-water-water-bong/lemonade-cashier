@@ -74,10 +74,31 @@ future PR can claim a layer is complete.
   `bag_id` so any UI can render in-flight bags without depending on
   `safety.bags`.
 
-## 9. Safety ✅
+## 9. Safety ✅ (v2 — PIN gates, lockout, profile, tamper, EOS report)
 
 - `safety.risk` produces a per-transaction risk score.
-- `safety.policy` enforces void/refund/discount thresholds.
+- `safety.policy` enforces void/refund/discount thresholds (sign-aware
+  via abs(); see earlier independent-reviewer finding).
+- `safety.pins` is the hashed PIN store: PBKDF2-SHA256, 200k iterations,
+  per-entry salt, constant-time compare, atomic write. PIN values never
+  appear in any persisted file or event payload.
+- `safety.lockout` is an event-projected per-attendant lockout: N
+  failed PIN attempts within a rolling window → locked for K minutes.
+  Same single-source-of-truth invariant as `safety.bags`.
+- `safety.profile` rolls every attendant's behavior into stats: void
+  rate, low-confidence add rate, model-proposed-add rate, bag-discrepancy
+  rate, pin-failure count.
+- `safety.tamper` runs cheap O(n) detectors over the log: clock skew
+  vs system time, long quiet periods, transaction.open/close imbalance.
+  Findings are returned for the report layer; the chain itself remains
+  the integrity source.
+- `safety.report` is the end-of-shift roll-up: log verification status,
+  till state, every bag's status, every attendant's profile, every
+  tamper finding, and totals. Renders to JSON and 80-column text.
+- Supervisor wiring: every void above the policy threshold demands a
+  PIN. Wrong PINs route through lockout; too many failures lock the
+  supervisor account for K minutes. The lockout module surfaces the
+  state from the event log alone.
 
 ## 10. Agents ✅
 
