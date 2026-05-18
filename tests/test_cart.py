@@ -94,3 +94,25 @@ def test_cart_line_rejects_float_unit_price():
 
     with pytest.raises((MoneyError, ValueError)):
         CartLine(sku="X", name="x", unit_price=1.50, taxable=True)
+
+
+def test_cart_add_rejects_price_mismatch():
+    """A second add of the same SKU at a different unit_price must
+    raise PriceMismatchError, not silently keep the first price."""
+
+    from lemonade_cashier.core.cart import PriceMismatchError
+
+    cart = Cart()
+    cart.add(make_line(price="1.00", qty=1))
+    with pytest.raises(PriceMismatchError):
+        cart.add(make_line(price="1.50", qty=1))
+
+
+def test_cart_add_same_price_still_merges():
+    """Sanity: matching prices still merge quantity."""
+
+    cart = Cart()
+    cart.add(make_line(price="1.00", qty=1))
+    cart.add(make_line(price="1.00", qty=2))
+    assert len(cart.lines) == 1
+    assert cart.lines[0].quantity == 3

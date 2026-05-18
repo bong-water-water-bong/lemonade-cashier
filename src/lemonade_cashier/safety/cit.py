@@ -76,9 +76,19 @@ def record_drop(
     If ``amount >= two_person_threshold`` and no ``witness_id`` is
     provided, :class:`TillError` is raised — the cashier must surface
     this to the supervisor and re-attempt with a witness.
+
+    ``amount`` must be strictly positive. A negative drop would otherwise
+    add cash to the till via the subtraction in
+    :func:`till_state_from_events` — bypassing both the pickup audit
+    trail and the witness rule for what is effectively a pickup.
     """
 
     amt = to_money(amount)
+    if amt <= to_money("0.00"):
+        raise TillError(
+            f"drop amount must be > 0; got ${money_str(amt)}. "
+            "Use record_pickup() to put money into the till."
+        )
     if amt >= to_money(two_person_threshold) and not witness_id:
         raise TillError(
             f"drop of ${money_str(amt)} >= ${money_str(to_money(two_person_threshold))}"
@@ -98,11 +108,17 @@ def record_drop(
 def record_pickup(
     log: EventLog, attendant_id: str, amount: Decimal
 ) -> Event:
+    amt = to_money(amount)
+    if amt <= to_money("0.00"):
+        raise TillError(
+            f"pickup amount must be > 0; got ${money_str(amt)}. "
+            "Use record_drop() to remove money from the till."
+        )
     return log.append(
         "cit.pickup",
         {
             "attendant": attendant_id,
-            "amount": money_str(to_money(amount)),
+            "amount": money_str(amt),
         },
     )
 

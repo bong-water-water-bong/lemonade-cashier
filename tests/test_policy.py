@@ -25,3 +25,21 @@ def test_refund_threshold():
 def test_discount_threshold():
     assert not can_discount(Decimal("2.99")).requires_pin
     assert can_discount(Decimal("3.00")).requires_pin
+
+
+def test_negative_void_still_gated():
+    """abs() at the gate prevents a 'void of -$100' from bypassing the
+    threshold check."""
+
+    outcome = can_void(Decimal("-100.00"))
+    assert outcome.requires_pin
+
+
+def test_negative_refund_still_gated():
+    outcome = can_refund(Decimal("-50.00"))
+    assert outcome.requires_pin
+
+
+def test_negative_discount_still_gated():
+    outcome = can_discount(Decimal("-25.00"))
+    assert outcome.requires_pin

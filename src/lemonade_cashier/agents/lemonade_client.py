@@ -27,21 +27,44 @@ from typing import Any
 
 
 _ALLOWED_SCHEMES = frozenset({"http", "https"})
+# Loopback only by default. The whole design of this module is "talk to
+# a local model server on this box"; allowing the URL to point anywhere
+# else turns the cashier into a credential-exfil vector via .env. An
+# operator who *really* wants a remote endpoint can override by setting
+# LC_REMOTE_LLM_OK=1, which surfaces in the system memory + audit log.
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 
 
-def _validate_url(url: str) -> bool:
-    """Return True iff ``url`` parses cleanly and uses http(s).
+def _validate_url(url: str, *, allow_remote: bool = False) -> bool:
+    """Return True iff ``url`` parses cleanly, uses http(s), and (unless
+    ``allow_remote`` is True) points at a loopback host.
 
-    Without this guard a misconfigured ``LC_LEMONADE_URL=file:///etc/passwd``
-    in .env would cause :func:`urllib.request.urlopen` to read a local
-    file. This module is supposed to be a network client, nothing else.
+    Catches four classes of misconfiguration:
+
+    * Non-http schemes (``file://``, ``javascript:``, ``ftp://``).
+    * Empty netloc.
+    * Embedded userinfo, which would let ``http://127.0.0.1@evil.com/``
+      slip past a naive substring check while actually resolving to
+      evil.com.
+    * Non-loopback hostnames when ``allow_remote`` is False.
     """
 
     try:
         parsed = urllib.parse.urlparse(url.strip())
     except ValueError:
         return False
-    return parsed.scheme in _ALLOWED_SCHEMES and bool(parsed.netloc)
+    if parsed.scheme not in _ALLOWED_SCHEMES:
+        return False
+    if not parsed.netloc:
+        return False
+    # urllib parses `user:pass@host` into parsed.username/parsed.hostname;
+    # any non-None username means the URL is trying to mask its real host.
+    if parsed.username is not None or parsed.password is not None:
+        return False
+    if allow_remote:
+        return True
+    host = (parsed.hostname or "").lower()
+    return host in _LOOPBACK_HOSTS
 
 
 @dataclass(frozen=True)
@@ -51,6 +74,7 @@ class LemonadeConfig:
     timeout_sec: float = 2.0
     max_tokens: int = 64
     enabled: bool = False
+    allow_remote: bool = False  # set True only if you intentionally use a non-loopback URL
 
 
 @dataclass(frozen=True)
@@ -80,7 +104,7 @@ def normalize(phrase: str, cart_shape: dict[str, Any], config: LemonadeConfig) -
 
     if not config.enabled or not phrase.strip():
         return None
-    if not _validate_url(config.url):
+    if not _validate_url(config.url, allow_remote=config.allow_remote):
         return None
 
     body = {

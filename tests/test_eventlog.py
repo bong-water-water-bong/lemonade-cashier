@@ -55,3 +55,16 @@ def test_resume_after_reopen(tmp_path):
     events = fresh.read_all()
     assert [e.seq for e in events] == [1, 2]
     assert events[1].prev == events[0].hash
+
+
+def test_verify_detects_non_monotonic_timestamps(tmp_path):
+    """A backdated event must be flagged by verify(), even if its hash
+    is valid in isolation."""
+
+    log_path = tmp_path / "events.jsonl"
+    log = EventLog(log_path)
+    log.append("cart.add", {"sku": "A"}, ts="2026-05-18T10:00:00+00:00")
+    log.append("cart.add", {"sku": "B"}, ts="2026-05-18T09:00:00+00:00")  # backwards
+
+    with pytest.raises(EventLogError, match="non-monotonic"):
+        log.verify()

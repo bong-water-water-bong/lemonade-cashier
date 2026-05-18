@@ -115,9 +115,17 @@ class EventLog:
                     ) from exc
 
     def verify(self) -> None:
-        """Walk the chain and raise :class:`EventLogError` on tamper."""
+        """Walk the chain and raise :class:`EventLogError` on tamper.
+
+        Also checks ``ts`` monotonicity: timestamps must be
+        non-decreasing along the chain. Without this, a backdated event
+        appended out-of-order would still pass the hash check (the hash
+        chain only covers the *content* of each event, not the relative
+        order of timestamps).
+        """
 
         prev = GENESIS_PREV
+        prev_ts = ""
         for index, event in enumerate(self.iter_events(), start=1):
             if event.seq != index:
                 raise EventLogError(
@@ -140,7 +148,16 @@ class EventLog:
                 raise EventLogError(
                     f"hash mismatch at seq {event.seq}"
                 )
+            # ISO-8601 lex-compare is correct for monotonically
+            # increasing UTC timestamps as long as offsets match (we
+            # write Z/+00:00 exclusively).
+            if prev_ts and event.ts < prev_ts:
+                raise EventLogError(
+                    f"non-monotonic ts at seq {event.seq}: "
+                    f"{event.ts} < {prev_ts}"
+                )
             prev = event.hash
+            prev_ts = event.ts
 
     def _scan_tail(self) -> tuple[int, str | None]:
         last_seq = 0

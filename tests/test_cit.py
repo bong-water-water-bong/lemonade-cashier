@@ -51,3 +51,30 @@ def test_close_resets_till_to_zero(event_log):
     close_till(event_log, "alice", Decimal("103.27"))
     state = till_state_from_events(event_log.read_all())
     assert state.cash_on_hand == Decimal("0.0000")
+
+
+def test_negative_drop_is_rejected(event_log):
+    """A negative-amount drop would otherwise add cash to the till via
+    the subtraction in till_state_from_events. Must be rejected."""
+
+    open_till(event_log, "alice", Decimal("100.00"))
+    with pytest.raises(TillError, match="must be > 0"):
+        record_drop(event_log, "alice", Decimal("-500.00"))
+
+
+def test_zero_drop_is_rejected(event_log):
+    open_till(event_log, "alice", Decimal("100.00"))
+    with pytest.raises(TillError, match="must be > 0"):
+        record_drop(event_log, "alice", Decimal("0.00"))
+
+
+def test_negative_pickup_is_rejected(event_log):
+    open_till(event_log, "alice", Decimal("100.00"))
+    with pytest.raises(TillError, match="must be > 0"):
+        record_pickup(event_log, "alice", Decimal("-50.00"))
+
+
+def test_zero_pickup_is_rejected(event_log):
+    open_till(event_log, "alice", Decimal("100.00"))
+    with pytest.raises(TillError, match="must be > 0"):
+        record_pickup(event_log, "alice", Decimal("0.00"))

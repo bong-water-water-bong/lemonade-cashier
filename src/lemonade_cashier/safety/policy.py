@@ -39,14 +39,20 @@ DEFAULT_REFUND_PIN_THRESHOLD = Decimal("5.00")
 DEFAULT_DISCOUNT_PIN_THRESHOLD = Decimal("3.00")
 
 
+# All three gates compare the *magnitude* of the change to the threshold.
+# A "refund of -$100" is a $100 refund either way — and code that takes
+# `abs()` downstream of an unchecked PolicyOutcome would silently bypass
+# the supervisor PIN. We normalize via `abs()` at the policy boundary
+# so the gate is sign-independent.
 def can_void(
     line_total: Decimal,
     *,
     threshold: Decimal = DEFAULT_VOID_PIN_THRESHOLD,
 ) -> PolicyOutcome:
-    if to_money(line_total) >= to_money(threshold):
+    amt = abs(to_money(line_total))
+    if amt >= to_money(threshold):
         return PolicyOutcome.needs_pin(
-            f"void of ${line_total} ≥ ${threshold} requires supervisor"
+            f"void of ${amt} ≥ ${threshold} requires supervisor"
         )
     return PolicyOutcome.ok()
 
@@ -56,9 +62,10 @@ def can_refund(
     *,
     threshold: Decimal = DEFAULT_REFUND_PIN_THRESHOLD,
 ) -> PolicyOutcome:
-    if to_money(amount) >= to_money(threshold):
+    amt = abs(to_money(amount))
+    if amt >= to_money(threshold):
         return PolicyOutcome.needs_pin(
-            f"refund of ${amount} ≥ ${threshold} requires supervisor"
+            f"refund of ${amt} ≥ ${threshold} requires supervisor"
         )
     return PolicyOutcome.ok()
 
@@ -68,9 +75,10 @@ def can_discount(
     *,
     threshold: Decimal = DEFAULT_DISCOUNT_PIN_THRESHOLD,
 ) -> PolicyOutcome:
-    if to_money(amount) >= to_money(threshold):
+    amt = abs(to_money(amount))
+    if amt >= to_money(threshold):
         return PolicyOutcome.needs_pin(
-            f"discount of ${amount} ≥ ${threshold} requires supervisor"
+            f"discount of ${amt} ≥ ${threshold} requires supervisor"
         )
     return PolicyOutcome.ok()
 

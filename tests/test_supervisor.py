@@ -84,3 +84,34 @@ def test_gaia_bridge_refuses_sensitive_state():
     assert bridge.ask("hi", cart_state={"items": [], "pin_hash": "x"}) is None
     assert _contains_sensitive({"items": [{"sku": "X", "pin": "1234"}]}) is True
     assert _contains_sensitive({"items": [{"sku": "X"}], "total": "1.00"}) is False
+
+
+def test_lemonade_rejects_non_loopback_host(seeded_db, event_log):
+    """LC_LEMONADE_URL pointing at a remote host must be refused unless
+    allow_remote is explicitly set."""
+
+    from lemonade_cashier.agents.lemonade_client import LemonadeConfig, normalize
+
+    bad_urls = [
+        "http://attacker.example.com:8000",
+        "http://127.0.0.1@evil.com",  # userinfo masking
+        "http://192.168.1.50:8000",
+        "https://example.org",
+    ]
+    for url in bad_urls:
+        result = normalize(
+            "anything",
+            {"items": []},
+            LemonadeConfig(url=url, enabled=True, timeout_sec=0.1),
+        )
+        assert result is None, f"expected None for {url!r}"
+
+
+def test_lemonade_allows_loopback():
+    """Loopback hosts pass the validator."""
+
+    from lemonade_cashier.agents.lemonade_client import _validate_url
+
+    assert _validate_url("http://127.0.0.1:8000")
+    assert _validate_url("http://localhost:8000")
+    assert _validate_url("http://[::1]:8000")

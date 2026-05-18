@@ -18,6 +18,10 @@ Actor = Literal["attendant", "agent_auto", "agent_confirmed", "customer"]
 Source = Literal["typed", "alias", "fuzzy", "model_proposed", "scanned"]
 
 
+class PriceMismatchError(ValueError):
+    """Raised when :meth:`Cart.add` tries to merge a SKU at a different price."""
+
+
 @dataclass
 class CartLine:
     """One physical/logical item on the receipt.
@@ -77,10 +81,22 @@ class Cart:
         two adds. The event log still records each add separately, so
         the full provenance trail is preserved there — this rule just
         ensures the in-memory snapshot never overstates trust.
+
+        Raises :class:`PriceMismatchError` if the SKU is already in the
+        cart at a different ``unit_price``. The customer must be charged
+        the same price for every unit of the same SKU in a single
+        transaction; a silent merge that takes the first price would
+        hide a catalog edit or a model-proposed stale price.
         """
 
         for existing in self.lines:
             if existing.sku == line.sku:
+                if existing.unit_price != line.unit_price:
+                    raise PriceMismatchError(
+                        f"cannot merge {line.sku}: existing unit_price "
+                        f"{existing.unit_price} != new {line.unit_price}. "
+                        "Remove the existing line and re-add at the new price."
+                    )
                 existing.quantity += line.quantity
                 existing.actor = _least_trusted_actor(existing.actor, line.actor)
                 existing.source = _least_trusted_source(existing.source, line.source)
@@ -154,4 +170,4 @@ def _least_trusted_source(a: Source, b: Source) -> Source:
     return max((a, b), key=_SOURCE_TRUST.index)
 
 
-__all__ = ["Actor", "Cart", "CartLine", "Source"]
+__all__ = ["Actor", "Cart", "CartLine", "PriceMismatchError", "Source"]

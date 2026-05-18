@@ -24,6 +24,7 @@ class FLMConfig:
     model: str = "qwen3:4b"
     timeout_sec: float = 2.0
     enabled: bool = False
+    allow_remote: bool = False
 
 
 def normalize(
@@ -37,7 +38,7 @@ def normalize(
 
     if not config.enabled or not phrase.strip():
         return None
-    if not _validate_url(config.url):
+    if not _validate_url(config.url, allow_remote=config.allow_remote):
         return None
 
     # FLM follows the Ollama API: /api/generate takes a flat string
