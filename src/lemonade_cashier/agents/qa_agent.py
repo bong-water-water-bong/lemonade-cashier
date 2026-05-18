@@ -26,13 +26,14 @@ local to this module.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any
 
 from ..audit.eventlog import EventLog
 from ..safety.report import build as build_report
 from . import proposals, registry
-from .lemonade_client import LemonadeConfig, normalize as _lemonade_normalize
+from .lemonade_client import LemonadeConfig, chat_completions
 
 
 SYSTEM_PROMPT = (
@@ -41,6 +42,8 @@ SYSTEM_PROMPT = (
     "names, or PINs. If the answer isn't in the state, say so. Keep "
     "answers under 2 sentences, plain text, no markdown."
 )
+
+MAX_ANSWER_CHARS = 800
 
 
 @dataclass(frozen=True)
@@ -73,22 +76,29 @@ def ask(
         return None
 
     # Build the read-only context the model sees. Includes cart/till/
-    # bag/profile state but NOT raw event payloads (which may contain
-    # PIN-failure events with actor_ids, or attendant identifiers we
-    # don't want to expose in detail).
+    # bag/profile state but NOT raw event payloads (PIN-failure
+    # events, attendant identifiers we don't want to expose in detail).
     state = build_report(log).state
     safe_state = _trim_for_model(state)
 
-    # Reuse the Lemonade chat-completions client by feeding it a
-    # cart-shape-like context. The normalize() function returns a
-    # NormalizedPhrase, which we adapt — it's the OpenAI-compatible
-    # chat API the model serves either way.
-    normalized = _lemonade_normalize(
-        cleaned,
-        cart_shape={"items": safe_state.get("totals", {}).get("transactions", 0)},
+    # Call the SHARED chat-completions transport with the Q&A's OWN
+    # system prompt. The earlier version routed through normalize(),
+    # which hard-codes the cart-normalizer's "produce a product
+    # phrase" prompt — meaning the Q&A agent received the wrong
+    # instructions and produced product fragments as "answers".
+    content = chat_completions(
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": json.dumps(
+                    {"question": cleaned, "state": safe_state}, default=str
+                ),
+            },
+        ],
         config=config,
     )
-    if normalized is None:
+    if content is None:
         proposals.write(
             log,
             agent="qa",
@@ -100,9 +110,13 @@ def ask(
         )
         return None
 
-    answer_text = str(normalized.candidate).strip()
+    answer_text = str(content).strip()[:MAX_ANSWER_CHARS]
     if not answer_text:
         return None
+
+    # No native confidence channel; record an inferred mid-confidence
+    # value. A more elaborate setup could ask the model to self-rate.
+    inferred_confidence = 0.6
 
     proposals.write(
         log,
@@ -110,13 +124,13 @@ def ask(
         kind="chat_response",
         input={"question": cleaned},
         output={"answer": answer_text},
-        confidence=normalized.confidence,
+        confidence=inferred_confidence,
         decision="accepted",
     )
     return QAAnswer(
         question=cleaned,
         answer=answer_text,
-        confidence=normalized.confidence,
+        confidence=inferred_confidence,
     )
 
 

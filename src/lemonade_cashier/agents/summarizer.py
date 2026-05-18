@@ -22,7 +22,17 @@ from typing import Any
 from ..audit.eventlog import EventLog
 from ..safety.report import build as build_report
 from . import proposals, registry
-from .lemonade_client import LemonadeConfig, normalize as _lemonade_normalize
+from .lemonade_client import LemonadeConfig, chat_completions
+
+
+SYSTEM_PROMPT = (
+    "You are the end-of-shift summarizer for a cashier. Produce a "
+    "single short paragraph (3-5 sentences) of plain English. Mention "
+    "transaction count, voids, PIN failures, till cash on hand, and "
+    "any bag discrepancies. Do not invent numbers. Do not use markdown."
+)
+
+MAX_SUMMARY_CHARS = 1200
 
 
 @dataclass(frozen=True)
@@ -39,25 +49,32 @@ def summarize(log: EventLog, *, config: LemonadeConfig) -> Summary:
     "reliability before autonomy" principle.
     """
 
+    # Build the report exactly once; both branches consume the same state.
+    state = build_report(log).state
+
     try:
         registry.assert_can_emit("summarizer", "summarize")
     except registry.CapabilityError:
-        return Summary(text=_template(build_report(log).state), source="fallback")
-
-    state = build_report(log).state
+        return Summary(text=_template(state), source="fallback")
 
     if not config.enabled:
         return Summary(text=_template(state), source="fallback")
 
-    # Use the chat client; the prompt asks for one paragraph of plain
-    # text. Falls back if the model is unreachable.
+    # Call the SHARED chat-completions transport with the summarizer's
+    # OWN system prompt. The earlier version reused the cart normalizer
+    # prompt and the model returned one-word product phrases as
+    # "summaries". Each agent now sends its own prompt; the registry
+    # enforces the capability split structurally and the prompt layer
+    # reflects it.
     digest = _state_digest(state)
-    normalized = _lemonade_normalize(
-        digest,
-        cart_shape={"items": []},
+    content = chat_completions(
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": digest},
+        ],
         config=config,
     )
-    if normalized is None or not normalized.candidate.strip():
+    if content is None or not content.strip():
         proposals.write(
             log,
             agent="summarizer",
@@ -69,14 +86,14 @@ def summarize(log: EventLog, *, config: LemonadeConfig) -> Summary:
         )
         return Summary(text=_template(state), source="fallback")
 
-    text = normalized.candidate.strip()
+    text = content.strip()[:MAX_SUMMARY_CHARS]
     proposals.write(
         log,
         agent="summarizer",
         kind="summarize",
         input={"digest": digest},
         output={"text": text},
-        confidence=normalized.confidence,
+        confidence=0.7,
         decision="accepted",
     )
     return Summary(text=text, source="model")
