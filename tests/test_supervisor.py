@@ -204,6 +204,15 @@ def test_set_quantity_reduction_above_threshold_demands_pin(seeded_db, event_log
     assert out.needs_pin is True
     assert out.pin_for_action == "void_quantity_reduction"
 
+    # Happy path: correct PIN → reduction actually applies.
+    out = sup.handle_text("2 of those", pin="1234")
+    assert not out.needs_pin
+    assert "set quantity to 2" in out.message
+    coffee_line = next(
+        item for item in out.state["items"] if item["sku"] == "COF001"
+    )
+    assert coffee_line["quantity"] == 2
+
 
 def test_clear_cart_above_threshold_demands_pin(seeded_db, event_log, tmp_path):
     """`separate order` on a cart whose subtotal exceeds the void
@@ -229,6 +238,12 @@ def test_clear_cart_above_threshold_demands_pin(seeded_db, event_log, tmp_path):
     out = sup.handle_text("separate order")
     assert out.needs_pin is True
     assert out.pin_for_action == "void_clear_cart"
+
+    # Happy path: correct PIN clears the cart and starts a new order.
+    out = sup.handle_text("separate order", pin="1234")
+    assert not out.needs_pin
+    assert "separate order" in out.message
+    assert out.state["items"] == []
 
 
 def test_clear_empty_cart_no_pin_required(seeded_db, event_log):
