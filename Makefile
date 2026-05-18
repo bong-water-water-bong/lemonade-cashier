@@ -3,7 +3,9 @@
 
 PYTHON ?= python3
 
-.PHONY: help install dev test test-cov lint type fmt run seed replay clean
+.PHONY: all help install test test-cov lint type fmt run seed replay clean
+
+all: lint type test
 
 help:
 	@echo "Targets:"

@@ -114,7 +114,7 @@ JSON (the same JSON shape `replay()` reconstructs).
 
 ## Architecture at a glance
 
-```
+```text
                 ┌──────────────────────────────────────────────┐
                 │              CLI / Operator Loop             │
                 └─────────────┬────────────────────┬───────────┘

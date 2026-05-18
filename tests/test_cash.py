@@ -46,3 +46,21 @@ def test_compute_change_unmakeable_raises():
     # Only $1 bills available, change due is $0.37 — no way to break.
     with pytest.raises(UnmakeableChange):
         compute_change("0.63", "1.00", denominations=(Decimal("1.00"),))
+
+
+def test_compute_change_rejects_nonpositive_denoms():
+    with pytest.raises(ValueError):
+        compute_change("0.50", "1.00", denominations=(Decimal("0.00"),))
+    with pytest.raises(ValueError):
+        compute_change("0.50", "1.00", denominations=(Decimal("-1.00"),))
+
+
+def test_compute_change_four_decimal_inputs():
+    """compute_change accepts four-decimal inputs and quantizes to two."""
+
+    change = compute_change("1.2345", "2.0000")
+    # 2.0000 - 1.2345 = 0.7655 → quantized to 0.77 (bankers' rounding).
+    assert change.change_due == Decimal("0.77")
+    breakdown = dict(change.breakdown)
+    assert breakdown[Decimal("0.25")] == 3  # 75¢
+    assert breakdown[Decimal("0.01")] == 2  # 2¢

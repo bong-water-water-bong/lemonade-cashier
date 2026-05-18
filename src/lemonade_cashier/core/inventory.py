@@ -97,12 +97,19 @@ def initialize_database(
 
 
 def all_products(db_path: Path = DEFAULT_DB_PATH) -> list[Product]:
-    """Return every row from the products table."""
+    """Return every row from the products table, ordered by SKU.
+
+    The explicit ORDER BY is what makes :func:`find_product` deterministic
+    on ties: when two products score identically, the first one in SKU
+    order wins. Without the ORDER BY, SQLite is free to return rows in
+    any order and the "best match" becomes non-reproducible.
+    """
 
     initialize_database(db_path)
     with sqlite3.connect(db_path) as connection:
         rows = connection.execute(
-            "SELECT sku, name, price, taxable, aliases FROM products"
+            "SELECT sku, name, price, taxable, aliases FROM products "
+            "ORDER BY sku"
         ).fetchall()
     return [_row_to_product(row) for row in rows]
 
@@ -146,15 +153,15 @@ def _score_product(query: str, product: Product) -> ProductMatch | None:
         return _match(product, 0.95, "alias")
 
     candidate_score = 0.0
-    matched_via = "fuzzy"
+    candidate_via = "fuzzy"
     if query in name or name in query:
         candidate_score = 0.86
-        matched_via = "substring"
+        candidate_via = "substring"
     else:
         for alias in aliases:
             if query in alias or alias in query:
                 candidate_score = 0.86
-                matched_via = "substring"
+                candidate_via = "substring"
                 break
 
     fuzzy_score = SequenceMatcher(None, query, name).ratio()
@@ -163,7 +170,13 @@ def _score_product(query: str, product: Product) -> ProductMatch | None:
             fuzzy_score, SequenceMatcher(None, query, alias).ratio()
         )
 
-    final = max(candidate_score, fuzzy_score)
+    # Whichever scorer wins also names the provenance. Without this the
+    # match could be reported as "substring" when the fuzzy score was
+    # actually higher (and vice versa).
+    if fuzzy_score > candidate_score:
+        final, matched_via = fuzzy_score, "fuzzy"
+    else:
+        final, matched_via = candidate_score, candidate_via
     if final == 0.0:
         return None
     return _match(product, round(final, 2), matched_via)

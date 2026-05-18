@@ -88,10 +88,14 @@ def compute_change(
             f"tendered {money_str(tendered_d)} < total {money_str(total_d)}"
         )
 
+    sorted_denoms = sorted(denominations, reverse=True)
+    if any(d <= ZERO for d in sorted_denoms):
+        raise ValueError("denominations must all be > 0")
+
     change_due = to_display(tendered_d - total_d)
     remaining = change_due
     breakdown: list[tuple[Decimal, int]] = []
-    for denom in sorted(denominations, reverse=True):
+    for denom in sorted_denoms:
         if remaining < denom:
             continue
         count = int(remaining // denom)
@@ -105,7 +109,7 @@ def compute_change(
     if remaining != ZERO:
         raise UnmakeableChange(
             f"cannot make change for {money_str(change_due)} from "
-            f"denominations {sorted(denominations, reverse=True)}: "
+            f"denominations {sorted_denoms}: "
             f"{money_str(remaining)} remaining"
         )
     return ChangeBreakdown(
