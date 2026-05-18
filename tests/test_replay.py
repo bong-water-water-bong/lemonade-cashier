@@ -85,3 +85,22 @@ def test_replay_round_trips_cit_events(event_log):
     # The witnessed drop must carry the witness id through the chain.
     witnessed = next(e for e in state["cit"] if e["type"] == "cit.drop.witnessed")
     assert witnessed["payload"]["witness"] == "bob"
+
+
+def test_replay_records_malformed_event_without_crashing(event_log):
+    """A garbled event payload should land in unknown_events with a
+    replay_error annotation; subsequent events still apply cleanly."""
+
+    from lemonade_cashier.audit.replay import replay
+
+    event_log.append("transaction.open", {"tax_rate": "0.15"})
+    # Missing required keys (sku, name, unit_price, ...).
+    event_log.append("cart.add", {"sku": "ONLY"})
+    event_log.append("cart.clear", {})  # valid; should still apply
+
+    state = replay(event_log.read_all()).to_state()
+    assert state["items"] == []  # cart.add failed, cart.clear ran
+    assert "unknown_events" in state
+    bad = state["unknown_events"][0]
+    assert bad["type"] == "cart.add"
+    assert "replay_error" in bad
