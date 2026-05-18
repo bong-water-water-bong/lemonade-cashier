@@ -1,0 +1,7 @@
+{"name": "single apple", "inputs": ["apple"], "expected": {"item_skus": ["APL001"], "subtotal": "0.75"}}
+{"name": "two apples via quantity", "inputs": ["apple", "two of those"], "expected": {"item_skus": ["APL001"], "subtotal": "1.50"}}
+{"name": "apple plus milk", "inputs": ["apple", "milk"], "expected": {"item_skus": ["APL001", "MLK001"], "subtotal": "4.24"}}
+{"name": "alias coke", "inputs": ["coke"], "expected": {"item_skus": ["COK001"], "subtotal": "1.50"}}
+{"name": "remove that", "inputs": ["apple", "milk", "remove that"], "expected": {"item_skus": ["APL001"]}}
+{"name": "separate order resets cart", "inputs": ["apple", "separate order", "milk"], "expected": {"item_skus": ["MLK001"], "subtotal": "3.49"}}
+{"name": "leading quantity", "inputs": ["3 apples"], "expected": {"item_skus": ["APL001"], "subtotal": "2.25"}}

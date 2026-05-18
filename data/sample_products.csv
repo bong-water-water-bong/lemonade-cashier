@@ -1,0 +1,16 @@
+sku,name,price,taxable,aliases
+APL001,apple,0.75,true,apples|red apple|gala apple
+BAN001,banana,0.50,true,bananas|yellow banana
+MLK001,milk 1 gal,3.49,false,milk|whole milk|gallon of milk
+BRD001,bread loaf,2.99,false,bread|loaf|sliced bread
+EGG001,eggs dozen,4.25,false,eggs|dozen eggs|carton of eggs
+COF001,coffee 12oz,8.99,true,coffee|ground coffee|bag of coffee
+COK001,coca-cola 12oz,1.50,true,coke|coca cola|cola|cocacola
+PEP001,pepsi 12oz,1.50,true,pepsi|pepsi cola
+WAT001,water bottle,1.00,false,water|bottled water|aquafina
+CHP001,potato chips,2.49,true,chips|crisps|bag of chips
+CDY001,chocolate bar,1.75,true,candy|chocolate|chocolate candy
+GUM001,gum pack,1.25,true,gum|chewing gum|stick of gum
+NWS001,newspaper,2.00,false,paper|news|local paper
+BAT001,batteries aa,5.99,true,batteries|aa batteries|double a
+ICE001,ice cream pint,4.99,true,ice cream|ice-cream|pint of ice cream
