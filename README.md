@@ -1,5 +1,7 @@
 # Lemonade Cashier
 
+> *autonomous cashier for ma & pa shops*
+
 A local-first, offline-capable cashier assistant for the AMD **Strix Halo**
 (Ryzen AI MAX+ 395 / XDNA2) workstation. Built on the spec
 *Lemonade Cashier — Complete Strix Halo Build Specification* with a
