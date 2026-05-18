@@ -104,7 +104,21 @@ def _apply(state: ReplayState, event: Event) -> None:
             {"seq": event.seq, "type": event.type, "payload": event.payload}
         )
         return
-    handler(state, event)
+    # A malformed event payload (missing required field, wrong type)
+    # would otherwise crash the entire replay. Capture it and keep
+    # going: the rest of the log is still useful, and `state.unknown_events`
+    # is the audit-visible signal that something is off.
+    try:
+        handler(state, event)
+    except (KeyError, TypeError, ValueError) as exc:
+        state.unknown_events.append(
+            {
+                "seq": event.seq,
+                "type": event.type,
+                "payload": event.payload,
+                "replay_error": f"{type(exc).__name__}: {exc}",
+            }
+        )
 
 
 def _on_open(state: ReplayState, event: Event) -> None:

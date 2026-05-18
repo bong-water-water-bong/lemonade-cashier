@@ -122,10 +122,9 @@ def discover(timeout_sec: float = DEFAULT_TIMEOUT_SEC) -> GAIABridge:
     return GAIABridge(available=gaia is not None, timeout_sec=timeout_sec)
 
 
-__all__ = ["DEFAULT_TIMEOUT_SEC", "GAIABridge", "discover"]
+__all__ = ["DEFAULT_TIMEOUT_SEC", "GAIABridge", "add_sensitive_key", "discover"]
 
 
-# Re-exported so callers can extend the deny-list per-deployment.
 def add_sensitive_key(name: str) -> frozenset[str]:
     """Return a new frozenset with ``name`` added to the sensitive deny-list."""
 
