@@ -157,6 +157,86 @@ def test_void_above_threshold_demands_pin(seeded_db, event_log, tmp_path):
     assert not out.needs_pin
 
 
+def test_remove_named_above_threshold_demands_pin(seeded_db, event_log, tmp_path):
+    """`remove coffee` on a $17.98 line must demand a PIN, same as
+    `remove that`. Regression test for the independent-reviewer finding
+    that only _remove_last hit the policy gate."""
+
+    from lemonade_cashier.safety import pins
+
+    pin_store = tmp_path / "pins.json"
+    pins.set_pin("supervisor", "1234", path=pin_store)
+    sup = Supervisor(
+        event_log,
+        SupervisorConfig(
+            attendant_id="alice", supervisor_id="supervisor", pin_store=pin_store
+        ),
+    )
+    sup.handle_text("coffee")
+    sup.handle_text("two of those")
+
+    out = sup.handle_text("remove coffee")
+    assert out.needs_pin is True
+    assert out.pin_for_action == "void_named"
+
+    out = sup.handle_text("remove coffee", pin="1234")
+    assert "removed" in out.message
+
+
+def test_set_quantity_reduction_above_threshold_demands_pin(seeded_db, event_log, tmp_path):
+    """Going from `12 of those` ($107.88 of coffee) to `2 of those`
+    ($17.98) is a $89.90 partial void — must demand a PIN."""
+
+    from lemonade_cashier.safety import pins
+
+    pin_store = tmp_path / "pins.json"
+    pins.set_pin("supervisor", "1234", path=pin_store)
+    sup = Supervisor(
+        event_log,
+        SupervisorConfig(
+            attendant_id="alice", supervisor_id="supervisor", pin_store=pin_store
+        ),
+    )
+    sup.handle_text("coffee")
+    sup.handle_text("12 of those")
+
+    out = sup.handle_text("2 of those")
+    assert out.needs_pin is True
+    assert out.pin_for_action == "void_quantity_reduction"
+
+
+def test_clear_cart_above_threshold_demands_pin(seeded_db, event_log, tmp_path):
+    """`separate order` on a $50+ cart wipes everything — must demand a
+    PIN. This was the most dangerous bypass before the gate extraction
+    because the operator could erase an arbitrarily large cart with
+    no audit signal."""
+
+    from lemonade_cashier.safety import pins
+
+    pin_store = tmp_path / "pins.json"
+    pins.set_pin("supervisor", "1234", path=pin_store)
+    sup = Supervisor(
+        event_log,
+        SupervisorConfig(
+            attendant_id="alice", supervisor_id="supervisor", pin_store=pin_store
+        ),
+    )
+    sup.handle_text("coffee")
+    sup.handle_text("two of those")  # $17.98 — over $10 threshold
+    out = sup.handle_text("separate order")
+    assert out.needs_pin is True
+    assert out.pin_for_action == "void_clear_cart"
+
+
+def test_clear_empty_cart_no_pin_required(seeded_db, event_log):
+    """An empty cart can be `separate order`'d for free — no value at risk."""
+
+    sup = Supervisor(event_log, SupervisorConfig(attendant_id="alice"))
+    out = sup.handle_text("separate order")
+    assert "separate order" in out.message
+    assert not out.needs_pin
+
+
 def test_supervisor_report_returns_eos_state(seeded_db, event_log):
     sup = Supervisor(event_log, SupervisorConfig(attendant_id="alice"))
     sup.handle_text("apple")

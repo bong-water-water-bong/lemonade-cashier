@@ -13,9 +13,20 @@ from lemonade_cashier.safety.lockout import (
     record_pin_attempt,
     state_for,
 )
+from lemonade_cashier.safety.pins import set_pin
 
 
 T0 = datetime(2026, 5, 18, 12, 0, 0, tzinfo=timezone.utc)
+
+
+@pytest.fixture()
+def manager_pin(tmp_path):
+    """A pin-store with 'manager' configured at PIN '0000'. Tests that
+    call lift_lockout get the path via this fixture."""
+
+    store = tmp_path / "pins.json"
+    set_pin("manager", "0000", path=store)
+    return store
 
 
 def test_initial_state_is_unlocked(event_log):
@@ -72,18 +83,35 @@ def test_success_clears_failure_counter(event_log):
     assert state.recent_failures == 0
 
 
-def test_lift_lockout_requires_distinct_actor(event_log):
+def test_lift_lockout_requires_distinct_actor(event_log, manager_pin):
     with pytest.raises(LockoutError, match="cannot lift their own"):
-        lift_lockout(event_log, "alice", by_actor="alice")
+        lift_lockout(
+            event_log, "alice", by_actor="alice", by_pin="0000",
+            pin_store_path=manager_pin,
+        )
 
 
-def test_lift_lockout_clears_state(event_log):
+def test_lift_lockout_requires_valid_pin(event_log, manager_pin):
+    """Without the manager's PIN the lift is refused — this is the
+    fix for the independent-reviewer finding that lift_lockout used
+    to accept any actor string with no auth."""
+
+    with pytest.raises(LockoutError, match="did not verify"):
+        lift_lockout(
+            event_log, "alice", by_actor="manager", by_pin="WRONG",
+            pin_store_path=manager_pin,
+        )
+
+
+def test_lift_lockout_clears_state(event_log, manager_pin):
     for i in range(DEFAULT_FAILURE_THRESHOLD):
         record_pin_attempt(
             event_log, "alice", success=False, now=T0 + timedelta(seconds=i)
         )
     lift_lockout(
-        event_log, "alice", by_actor="manager", now=T0 + timedelta(seconds=10)
+        event_log, "alice", by_actor="manager", by_pin="0000",
+        now=T0 + timedelta(seconds=10),
+        pin_store_path=manager_pin,
     )
     state = state_for(event_log, "alice", now=T0 + timedelta(seconds=11))
     assert not state.is_locked

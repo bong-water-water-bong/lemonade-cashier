@@ -81,6 +81,20 @@ class AttendantProfile:
 def profiles_from_events(events: Iterable[Event]) -> dict[str, AttendantProfile]:
     """Build a ``{actor_id: AttendantProfile}`` dict from ``events``."""
 
+    # Materialize once. The discrepancy handler below has to scan
+    # backwards to find the bag's sealer, and we can't do that against
+    # a generator-style iterable (would either crash or skip events).
+    # Also lets us pre-index bag-id → sealer so the discrepancy
+    # attribution is O(n) total, not O(n^2).
+    events_list = list(events)
+    bag_sealers: dict[str, str] = {}
+    for event in events_list:
+        if event.type == "cit.bag.sealed":
+            bag_id = event.payload.get("bag_id") if event.payload else None
+            attendant = event.payload.get("attendant") if event.payload else None
+            if isinstance(bag_id, str) and isinstance(attendant, str):
+                bag_sealers[bag_id] = attendant
+
     counters: dict[str, _Counter] = {}
 
     def bump(actor: str | None, field_name: str, delta: int = 1) -> None:
@@ -90,7 +104,7 @@ def profiles_from_events(events: Iterable[Event]) -> dict[str, AttendantProfile]
         counter = counters.setdefault(canon, _Counter(actor_id=canon))
         counter.values[field_name] = counter.values.get(field_name, 0) + delta
 
-    for event in events:
+    for event in events_list:
         payload = event.payload or {}
         if event.type == "transaction.open":
             bump(payload.get("attendant"), "total_transactions")
@@ -119,10 +133,9 @@ def profiles_from_events(events: Iterable[Event]) -> dict[str, AttendantProfile]
             bump(payload.get("attendant"), "bags_sealed")
         elif event.type == "cit.bag.discrepancy":
             # The discrepancy isn't tied to a specific attendant on its
-            # own payload — credit it to whoever sealed the bag. We
-            # walk back through the events list to find the sealer.
+            # own payload — credit it to whoever sealed the bag.
             bag_id = payload.get("bag_id")
-            sealer = _sealer_of(events, bag_id) if isinstance(bag_id, str) else None
+            sealer = bag_sealers.get(bag_id) if isinstance(bag_id, str) else None
             bump(sealer, "bag_discrepancies")
         elif event.type == "safety.pin.failed":
             bump(payload.get("actor_id"), "pin_failures")
@@ -177,17 +190,6 @@ def _last_attendant(counters: dict[str, _Counter]) -> str | None:
     if not counters:
         return None
     return max(counters.values(), key=lambda c: c.values.get("total_transactions", 0)).actor_id
-
-
-def _sealer_of(events: Iterable[Event], bag_id: str) -> str | None:
-    for event in events:
-        if event.type != "cit.bag.sealed":
-            continue
-        if event.payload.get("bag_id") == bag_id:  # type: ignore[attr-defined]
-            attendant = event.payload.get("attendant")  # type: ignore[attr-defined]
-            if isinstance(attendant, str):
-                return attendant
-    return None
 
 
 __all__ = ["AttendantProfile", "profile_for", "profiles_from_events"]

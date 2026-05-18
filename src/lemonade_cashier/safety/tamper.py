@@ -11,9 +11,11 @@ individual events. ``EventLog.verify`` additionally catches:
 This module catches a different class — **subtle integrity signals**
 that don't break the chain but suggest something off:
 
-* **Clock skew**: the latest event's ``ts`` is far in the past or far in
-  the future relative to ``now``. Could be an operator with a wrong
-  clock; could be an attacker replaying old events.
+* **Clock skew**: the latest event's ``ts`` is far in the *future*
+  relative to ``now``. Past-skew (events older than expected) is
+  handled by the separate **long-quiet** detector below — those two
+  cases want different remediation, so keeping them as separate
+  findings is intentional.
 * **Long gap**: a long quiet period followed by activity. Not
   necessarily malicious, but worth flagging if a shift is supposed to
   be continuous.

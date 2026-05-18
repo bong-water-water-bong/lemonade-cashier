@@ -21,7 +21,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Iterable
 
 from ..audit.eventlog import Event, EventLog
-from .pins import _validate_actor_id
+from .pins import _validate_actor_id, verify_pin
 
 DEFAULT_FAILURE_THRESHOLD = 3
 DEFAULT_FAILURE_WINDOW = timedelta(seconds=60)
@@ -80,7 +80,13 @@ def record_pin_attempt(
     now = now or datetime.now(timezone.utc)
 
     # Check current state first; refuse to log fresh attempts while locked.
-    current = state_for(log, actor_id, now=now, lockout_duration=lockout_duration)
+    current = state_for(
+        log,
+        actor_id,
+        now=now,
+        failure_window=failure_window,
+        lockout_duration=lockout_duration,
+    )
     if current.is_locked:
         raise LockoutError(
             f"{actor_id!r} is locked out until {current.locked_until!s}"
@@ -129,14 +135,26 @@ def lift_lockout(
     actor_id: str,
     *,
     by_actor: str,
+    by_pin: str,
     now: datetime | None = None,
+    pin_store_path=None,
 ) -> Event:
-    """Supervisor (``by_actor``) lifts ``actor_id``'s lockout early."""
+    """Supervisor (``by_actor``) lifts ``actor_id``'s lockout early.
+
+    ``by_actor`` must have a PIN configured in the store and must
+    supply it via ``by_pin``. Without a verified PIN, the lift is
+    refused. This closes the original gap where any caller could
+    unlock any attendant simply by passing a string id.
+    """
 
     actor_id = _validate_actor_id(actor_id)
     by_actor = _validate_actor_id(by_actor)
     if actor_id == by_actor:
         raise LockoutError("an attendant cannot lift their own lockout")
+    if not verify_pin(by_actor, by_pin, path=pin_store_path):
+        raise LockoutError(
+            f"lift_lockout: {by_actor!r}'s PIN did not verify; refusing to lift"
+        )
     now = now or datetime.now(timezone.utc)
     return log.append(
         "safety.lockout.lifted",
