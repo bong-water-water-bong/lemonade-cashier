@@ -38,15 +38,16 @@ def normalize(
     if not config.enabled or not phrase.strip():
         return None
 
+    # FLM follows the Ollama API: /api/generate takes a flat string
+    # prompt, not a structured messages array. Compose the system rule,
+    # the cart context, and the attendant phrase into one block. The
+    # `format: "json"` field tells the model to return JSON.
+    user_payload = json.dumps(
+        {"phrase": phrase, "cart_items": cart_shape.get("items", [])}
+    )
     body = {
         "model": config.model,
-        "prompt": json.dumps(
-            {
-                "system": SYSTEM_PROMPT,
-                "phrase": phrase,
-                "cart_items": cart_shape.get("items", []),
-            }
-        ),
+        "prompt": f"{SYSTEM_PROMPT}\n\nINPUT:\n{user_payload}\n\nOUTPUT:",
         "format": "json",
         "stream": False,
         "options": {"temperature": 0.0, "num_predict": 64},

@@ -63,7 +63,7 @@ any laptop with Python 3.11+.
 ## Quick start
 
 ```bash
-git clone https://github.com/bcloud/lemonade-cashier.git
+git clone https://github.com/bong-water-water-bong/lemonade-cashier.git
 cd lemonade-cashier
 
 # Optional: editable install with dev extras (pytest, ruff, mypy)
