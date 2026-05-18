@@ -24,7 +24,7 @@ Composes everything in :mod:`safety` plus the till / bag state from
       "totals": {
         "transactions": N,
         "voids": M,
-        "discrepancies": K,
+        "bag_discrepancies": K,
         "pin_failures": P
       }
     }
@@ -34,8 +34,9 @@ break-room printer.
 
 The report does **not** write anything to the event log by default;
 the caller decides via :func:`save` whether to persist as a JSON
-sidecar or via :func:`emit_tamper_events` whether to land the tamper
-findings into the chain.
+sidecar. To also land tamper findings into the audit chain itself,
+call :func:`safety.tamper.emit` for each finding individually — this
+module deliberately keeps the report-building step read-only.
 """
 
 from __future__ import annotations

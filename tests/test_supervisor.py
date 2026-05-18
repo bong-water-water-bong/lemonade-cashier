@@ -206,10 +206,13 @@ def test_set_quantity_reduction_above_threshold_demands_pin(seeded_db, event_log
 
 
 def test_clear_cart_above_threshold_demands_pin(seeded_db, event_log, tmp_path):
-    """`separate order` on a $50+ cart wipes everything — must demand a
-    PIN. This was the most dangerous bypass before the gate extraction
-    because the operator could erase an arbitrarily large cart with
-    no audit signal."""
+    """`separate order` on a cart whose subtotal exceeds the void
+    threshold wipes everything — must demand a PIN. The test cart is
+    $17.98 (coffee × 2) — over the default $10 void threshold.
+
+    This was the most dangerous bypass before the gate extraction: the
+    operator could erase an arbitrarily large cart with `separate
+    order` and zero audit signal."""
 
     from lemonade_cashier.safety import pins
 
