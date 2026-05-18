@@ -71,3 +71,16 @@ def test_supervisor_clear_resets_cart(seeded_db, event_log):
     sup.handle_text("milk")
     skus = [item["sku"] for item in sup._state()["items"]]  # noqa: SLF001
     assert skus == ["MLK001"]
+
+
+def test_gaia_bridge_refuses_sensitive_state():
+    """gaia_bridge.ask refuses any cart_state that contains a sensitive
+    key name, even when GAIA isn't available — the check fires first."""
+
+    from lemonade_cashier.agents.gaia_bridge import GAIABridge, _contains_sensitive
+
+    bridge = GAIABridge(available=False)
+    # Even unavailable, ask() returns None for sensitive payloads.
+    assert bridge.ask("hi", cart_state={"items": [], "pin_hash": "x"}) is None
+    assert _contains_sensitive({"items": [{"sku": "X", "pin": "1234"}]}) is True
+    assert _contains_sensitive({"items": [{"sku": "X"}], "total": "1.00"}) is False
