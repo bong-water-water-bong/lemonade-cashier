@@ -73,10 +73,20 @@ def parse_event(raw_text: str) -> ParsedEvent:
     if text in REMOVE_LAST_PHRASES:
         return ParsedEvent(action="remove_last")
 
-    if text.startswith("cash ") or text.startswith("tender "):
+    if text == "cash" or text == "tender" or text.startswith(("cash ", "tender ")):
+        # The amount is everything after the verb. Reject empty or
+        # non-numeric amounts ("cash", "cash $", "tender abc") so the
+        # supervisor doesn't silently treat them as $0.00.
         parts = text.split(maxsplit=1)
-        if len(parts) == 2:
-            return ParsedEvent(action="tender", amount=parts[1].lstrip("$"))
+        amount = parts[1].lstrip("$").strip() if len(parts) == 2 else ""
+        if amount:
+            from decimal import Decimal, InvalidOperation
+            try:
+                Decimal(amount)
+                return ParsedEvent(action="tender", amount=amount)
+            except InvalidOperation:
+                pass
+        return ParsedEvent(action="help")
 
     if text.startswith("remove "):
         candidate = text[len("remove ") :].strip()

@@ -58,6 +58,13 @@ def test_tender_strips_dollar():
     assert event.amount == "5.00"
 
 
+def test_tender_rejects_empty_amount():
+    # "cash $" or "cash abc" should not silently parse as $0.00 tender.
+    assert parse_event("cash $").action == "help"
+    assert parse_event("cash abc").action == "help"
+    assert parse_event("tender ").action == "help"
+
+
 def test_close():
     assert parse_event("close").action == "close"
     assert parse_event("done").action == "close"

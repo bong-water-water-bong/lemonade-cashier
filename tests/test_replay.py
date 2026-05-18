@@ -46,3 +46,42 @@ def test_replay_via_path(seeded_db, tmp_path):
 
     state = replay_log(log_path).to_state()
     assert {item["sku"] for item in state["items"]} == {"APL001", "MLK001"}
+
+
+def test_replay_round_trips_cit_events(event_log):
+    """CIT events flow through the generic replay path, not just
+    `till_state_from_events`. The replay state exposes them under the
+    `cit` key so any consumer can render till activity from the JSONL
+    alone without depending on safety.cit."""
+
+    from decimal import Decimal
+
+    from lemonade_cashier.safety.cit import (
+        DEFAULT_TWO_PERSON_THRESHOLD,
+        close_till,
+        open_till,
+        record_drop,
+        record_pickup,
+    )
+
+    open_till(event_log, "alice", Decimal("100.00"))
+    record_drop(event_log, "alice", Decimal("25.00"))
+    record_drop(
+        event_log, "alice", DEFAULT_TWO_PERSON_THRESHOLD, witness_id="bob"
+    )
+    record_pickup(event_log, "alice", Decimal("10.00"))
+    close_till(event_log, "alice", Decimal("0.00"))
+
+    state = replay(event_log.read_all()).to_state()
+    assert "cit" in state
+    cit_types = [e["type"] for e in state["cit"]]
+    assert cit_types == [
+        "cit.till.open",
+        "cit.drop",
+        "cit.drop.witnessed",
+        "cit.pickup",
+        "cit.till.close",
+    ]
+    # The witnessed drop must carry the witness id through the chain.
+    witnessed = next(e for e in state["cit"] if e["type"] == "cit.drop.witnessed")
+    assert witnessed["payload"]["witness"] == "bob"

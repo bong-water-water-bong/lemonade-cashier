@@ -13,8 +13,9 @@ from decimal import Decimal
 
 from .money import ZERO, money_str, to_display, to_money
 
-# Smallest-to-largest order matters for change-making; we iterate
-# largest-first when greedy-breaking change.
+# Largest-to-smallest order. Greedy change-making iterates largest-first
+# (we also sort defensively in compute_change to keep this independent of
+# tuple order if a caller passes a custom set of denominations).
 DEFAULT_DENOMINATIONS: tuple[Decimal, ...] = (
     Decimal("100.00"),
     Decimal("50.00"),

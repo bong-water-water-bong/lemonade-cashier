@@ -155,11 +155,17 @@ class Supervisor:
                 candidate_quantity=event.quantity,
             )
 
-        if confirmed and match.confidence < self.config.confidence_threshold:
+        # Decide actor with explicit precedence: a model-proposed match
+        # *always* wins over the typed/fuzzy case because the source has
+        # already been overridden upstream. Within model_proposed, the
+        # confirmed flag distinguishes attendant-approved (agent_confirmed)
+        # from auto-applied (agent_auto). For typed/fuzzy, confirmation of
+        # a low-confidence match is the only way actor leaves "attendant".
+        if source == "model_proposed":
+            actor = "agent_confirmed" if confirmed else "agent_auto"
+        elif confirmed and match.confidence < self.config.confidence_threshold:
             actor = "agent_confirmed"
-            source = "fuzzy" if source == "typed" else source
-        elif source == "model_proposed":
-            actor = "agent_confirmed" if not confirmed else "agent_confirmed"
+            source = "fuzzy"
 
         line = CartLine(
             sku=match.sku,

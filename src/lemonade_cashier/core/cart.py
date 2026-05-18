@@ -22,7 +22,7 @@ Source = Literal["typed", "alias", "fuzzy", "model_proposed", "scanned"]
 class CartLine:
     """One physical/logical item on the receipt.
 
-    ``confidence`` is the matching confidence (0.0–1.0). For typed
+    ``confidence`` is the matching confidence (0.0-1.0). For typed
     attendant entries that exactly match a SKU name, this is 1.0.
     """
 
@@ -71,13 +71,20 @@ class Cart:
     def add(self, line: CartLine) -> None:
         """Add a line, merging quantity if the SKU already exists.
 
-        Merging preserves the *earlier* line's actor/source/confidence
-        — once attendant-approved, a SKU stays attendant-approved.
+        Merging is **audit-faithful**: a merge can only *downgrade*
+        provenance, never upgrade it. The merged line keeps the
+        less-trusted actor/source and the *minimum* confidence of the
+        two adds. The event log still records each add separately, so
+        the full provenance trail is preserved there — this rule just
+        ensures the in-memory snapshot never overstates trust.
         """
 
         for existing in self.lines:
             if existing.sku == line.sku:
                 existing.quantity += line.quantity
+                existing.actor = _least_trusted_actor(existing.actor, line.actor)
+                existing.source = _least_trusted_source(existing.source, line.source)
+                existing.confidence = min(existing.confidence, line.confidence)
                 self.last_sku = existing.sku
                 return
         self.lines.append(line)
@@ -129,6 +136,22 @@ class Cart:
             if line.taxable:
                 total += line.line_total
         return total
+
+
+# Ordering used by `Cart.add` to pick the *less* trusted actor/source on
+# merge. The list is most-trusted → least-trusted. Anything not listed is
+# treated as more trusted than anything that is, except `customer` which
+# is always the least trusted.
+_ACTOR_TRUST: tuple[Actor, ...] = ("attendant", "agent_confirmed", "agent_auto", "customer")
+_SOURCE_TRUST: tuple[Source, ...] = ("typed", "scanned", "alias", "fuzzy", "model_proposed")
+
+
+def _least_trusted_actor(a: Actor, b: Actor) -> Actor:
+    return max((a, b), key=_ACTOR_TRUST.index)
+
+
+def _least_trusted_source(a: Source, b: Source) -> Source:
+    return max((a, b), key=_SOURCE_TRUST.index)
 
 
 __all__ = ["Actor", "Cart", "CartLine", "Source"]

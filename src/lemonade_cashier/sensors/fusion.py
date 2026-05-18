@@ -10,6 +10,7 @@ confirmation gate.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -28,7 +29,7 @@ class FusedEvent:
 
 
 class FusionSource(Protocol):
-    def events(self) -> "Iterable[FusedEvent]":  # noqa: F821
+    def events(self) -> Iterable[FusedEvent]:
         """Yield :class:`FusedEvent` items as they arrive."""
 
     def close(self) -> None: ...

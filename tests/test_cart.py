@@ -59,6 +59,38 @@ def test_taxable_subtotal_only_taxable():
     assert cart.taxable_subtotal() == Decimal("1.0000")
 
 
+def test_merge_downgrades_actor_and_confidence():
+    """A merge can lower trust but never raise it."""
+
+    cart = Cart()
+    # First add: attendant, full confidence.
+    cart.add(make_line(qty=1, actor="attendant", source="typed", confidence=1.0))
+    # Second add: agent_auto, lower confidence — should drag merged line down.
+    cart.add(make_line(qty=1, actor="agent_auto", source="model_proposed", confidence=0.7))
+    assert len(cart.lines) == 1
+    merged = cart.lines[0]
+    assert merged.quantity == 2
+    assert merged.actor == "agent_auto"
+    assert merged.source == "model_proposed"
+    assert merged.confidence == 0.7
+
+
+def test_merge_keeps_least_trusted_on_either_order():
+    """Merge result is independent of which add came first."""
+
+    cart_a, cart_b = Cart(), Cart()
+    cart_a.add(make_line(actor="attendant", source="typed", confidence=1.0))
+    cart_a.add(make_line(actor="agent_confirmed", source="fuzzy", confidence=0.6))
+    cart_b.add(make_line(actor="agent_confirmed", source="fuzzy", confidence=0.6))
+    cart_b.add(make_line(actor="attendant", source="typed", confidence=1.0))
+
+    assert cart_a.lines[0].actor == cart_b.lines[0].actor == "agent_confirmed"
+    assert cart_a.lines[0].confidence == cart_b.lines[0].confidence == 0.6
+
+
 def test_cart_line_rejects_float_unit_price():
-    with pytest.raises(Exception):
+    # to_money(float) raises MoneyError, which is a ValueError subclass.
+    from lemonade_cashier.core.money import MoneyError
+
+    with pytest.raises((MoneyError, ValueError)):
         CartLine(sku="X", name="x", unit_price=1.50, taxable=True)

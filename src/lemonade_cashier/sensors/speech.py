@@ -8,6 +8,7 @@ inferred event is.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -23,7 +24,7 @@ class Utterance:
 
 
 class SpeechSource(Protocol):
-    def utterances(self) -> "Iterable[Utterance]":  # noqa: F821
+    def utterances(self) -> Iterable[Utterance]:
         """Yield :class:`Utterance` events as they arrive."""
 
     def close(self) -> None: ...

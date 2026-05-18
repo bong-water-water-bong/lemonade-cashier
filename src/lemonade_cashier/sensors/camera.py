@@ -13,6 +13,7 @@ later contributor can implement the camera path without touching
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -41,7 +42,7 @@ class Observation:
 class CameraSource(Protocol):
     """The minimal contract a camera implementation must satisfy."""
 
-    def observations(self) -> "Iterable[Observation]":  # noqa: F821 (Protocol)
+    def observations(self) -> Iterable[Observation]:
         """Yield :class:`Observation` events as they arrive."""
 
     def close(self) -> None:
