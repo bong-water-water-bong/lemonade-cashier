@@ -110,6 +110,18 @@ def test_bag_seal_exact_manifest_no_false_discrepancy(seeded_db, event_log):
     assert bag["counted_total"] == "250.50"
 
 
+def test_bag_prefixed_alias_resolves_to_product(seeded_db, event_log):
+    """End-to-end: 'bag of chips' must hit the inventory and add the
+    CHP001 SKU at $2.49, not be intercepted by the bag-verb parser."""
+
+    sup = Supervisor(event_log, SupervisorConfig(attendant_id="alice"))
+    out = sup.handle_text("bag of chips")
+    assert "potato chips" in out.message.lower()
+    items = out.state["items"]
+    assert len(items) == 1
+    assert items[0]["sku"] == "CHP001"
+
+
 def test_bag_seal_rejects_invalid_amount(seeded_db, event_log):
     """A typo like 'bag seal abx' returns a clean error, not an
     uncaught MoneyError out of the supervisor."""

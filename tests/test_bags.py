@@ -139,6 +139,23 @@ def test_seal_rejects_empty_attendant(event_log):
         seal_bag(event_log, "", _full_manifest("100.00"))
 
 
+def test_handoff_rejects_unsafe_bag_id(event_log):
+    """A bag_id with control chars / newlines / spaces / unusual punctuation
+    is rejected — those characters could corrupt the JSONL stream or
+    inject content into receipt text."""
+
+    seal_event = seal_bag(event_log, "alice", _full_manifest("100.00"))
+    legit_bag = seal_event.payload["bag_id"]
+
+    # Sanity: legit id passes.
+    handoff_bag(event_log, legit_bag, attendant_id="alice", carrier_id="bob")
+
+    # Bad ids never make it as far as the state machine.
+    for bad in ["", "bag-1\nINJECT", "bag with space", "bag/path", "bag;rm"]:
+        with pytest.raises(BagError, match="bag_id"):
+            handoff_bag(event_log, bad, attendant_id="alice", carrier_id="bob")
+
+
 def test_handoff_rejects_empty_carrier(event_log):
     event = seal_bag(event_log, "alice", _full_manifest("100.00"))
     bag_id = event.payload["bag_id"]

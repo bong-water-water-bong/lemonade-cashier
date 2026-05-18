@@ -95,12 +95,23 @@ def test_bag_reconcile_grammar():
     assert event.bag_id == "bag-abc"
 
 
-def test_bag_malformed_returns_help():
-    # Missing arguments → return help, not silently apply.
+def test_bag_malformed_known_verb_returns_help():
+    # Missing arguments after a known verb → return help (don't silently
+    # apply with zero amount, missing carrier, etc.).
     assert parse_event("bag seal").action == "help"
     assert parse_event("bag handoff bag-1").action == "help"
     assert parse_event("bag receive bag-1 c1").action == "help"
-    assert parse_event("bag random-verb").action == "help"
+
+
+def test_bag_prefixed_aliases_still_resolve_as_products():
+    """Critical regression case: 'bag of chips' and 'bag of coffee' are
+    real product aliases in sample_products.csv. They must fall through
+    to add_product, not get eaten by the bag-verb prefix check."""
+
+    for phrase in ["bag of chips", "bag of coffee", "bag random-verb"]:
+        event = parse_event(phrase)
+        assert event.action == "add_product", phrase
+        assert event.text == phrase
 
 
 def test_close():

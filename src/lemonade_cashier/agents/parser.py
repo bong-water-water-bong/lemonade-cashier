@@ -104,9 +104,17 @@ def parse_event(raw_text: str) -> ParsedEvent:
     #   bag handoff <bag_id> <carrier_id>
     #   bag receive <bag_id> <carrier_id> <counted>
     #   bag reconcile <bag_id>
+    #
+    # Critically: only the FOUR known bag verbs intercept. Anything else
+    # ("bag of chips", "bag of coffee" — both valid product aliases)
+    # falls through to add_product so the inventory lookup can run.
+    # See the cashier-agent-recommendations memo: schema-bounded matching
+    # beats vibes-bounded matching; the parser must not pre-empt the
+    # catalog.
+    _BAG_VERBS = {"seal", "handoff", "receive", "reconcile"}
     if text.startswith("bag "):
         tokens = text.split()
-        if len(tokens) >= 2:
+        if len(tokens) >= 2 and tokens[1] in _BAG_VERBS:
             verb = tokens[1]
             rest = tokens[2:]
             if verb == "seal" and len(rest) == 1:
@@ -125,7 +133,9 @@ def parse_event(raw_text: str) -> ParsedEvent:
                 )
             if verb == "reconcile" and len(rest) == 1:
                 return ParsedEvent(action="bag.reconcile", bag_id=rest[0])
-        return ParsedEvent(action="help")
+            return ParsedEvent(action="help")
+        # Not a bag verb — fall through to add_product so "bag of chips"
+        # can still resolve via the alias table.
 
     words = text.split()
     if len(words) >= 3 and words[-2:] == ["of", "those"]:

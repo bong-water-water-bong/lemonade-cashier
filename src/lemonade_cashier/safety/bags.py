@@ -34,10 +34,28 @@ Design notes (see ``~/.claude/projects/-home-bcloud/memory/ref-cit-cashtech.md``
 
 from __future__ import annotations
 
+import re
 import uuid
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Literal
+
+# bag_id / carrier_id / seal_id are persisted into the JSONL event log
+# and rendered into receipt text. We restrict the character set to keep
+# the log greppable, prevent newline-injection into adjacent JSON
+# records, and rule out control / shell characters in receipt output.
+_ID_PATTERN = re.compile(r"^[A-Za-z0-9._\-]{1,64}$")
+
+
+def _validate_identifier(value: object, *, field_name: str) -> str:
+    if not isinstance(value, str):
+        raise BagError(f"{field_name} must be a string; got {type(value).__name__}")
+    cleaned = value.strip()
+    if not _ID_PATTERN.fullmatch(cleaned):
+        raise BagError(
+            f"{field_name} must match {_ID_PATTERN.pattern}; got {value!r}"
+        )
+    return cleaned
 
 from ..audit.eventlog import Event, EventLog
 from ..core.money import ZERO, money_str, to_money
@@ -210,6 +228,8 @@ def seal_bag(
         )
     final_bag_id = bag_id or f"bag-{uuid.uuid4().hex[:12]}"
     final_seal_id = seal_id or f"seal-{uuid.uuid4().hex[:12]}"
+    final_bag_id = _validate_identifier(final_bag_id, field_name="bag_id")
+    final_seal_id = _validate_identifier(final_seal_id, field_name="seal_id")
 
     current = _current_status(log, final_bag_id)
     _require_transition(current, "sealed", final_bag_id)
@@ -243,6 +263,7 @@ def handoff_bag(
 
     attendant_canon = _canonicalize_actor_id(attendant_id, field_name="attendant_id")
     carrier_canon = _canonicalize_actor_id(carrier_id, field_name="carrier_id")
+    bag_id = _validate_identifier(bag_id, field_name="bag_id")
     if attendant_canon == carrier_canon:
         raise BagError(
             "carrier_id must differ from attendant_id (two-party rule); "
@@ -279,6 +300,7 @@ def receive_bag(
     """
 
     carrier_canon = _canonicalize_actor_id(carrier_id, field_name="carrier_id")
+    bag_id = _validate_identifier(bag_id, field_name="bag_id")
     counted = to_money(counted_total)
     if counted < ZERO:
         raise BagError(f"counted_total must be >= 0; got ${money_str(counted)}")
@@ -298,6 +320,7 @@ def receive_bag(
 def reconcile_bag(log: EventLog, bag_id: str) -> Event:
     """Mark ``bag_id`` reconciled. Caller must verify counted == manifest first."""
 
+    bag_id = _validate_identifier(bag_id, field_name="bag_id")
     current = _current_status(log, bag_id)
     _require_transition(current, "reconciled", bag_id)
     return log.append(
@@ -315,6 +338,7 @@ def flag_discrepancy(log: EventLog, bag_id: str, *, delta: Decimal) -> Event:
     about the discrepancy (that's a human decision).
     """
 
+    bag_id = _validate_identifier(bag_id, field_name="bag_id")
     current = _current_status(log, bag_id)
     _require_transition(current, "discrepancy", bag_id)
     return log.append(
