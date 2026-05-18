@@ -15,7 +15,7 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
-from .lemonade_client import SYSTEM_PROMPT, NormalizedPhrase
+from .lemonade_client import SYSTEM_PROMPT, NormalizedPhrase, _validate_url
 
 
 @dataclass(frozen=True)
@@ -37,26 +37,32 @@ def normalize(
 
     if not config.enabled or not phrase.strip():
         return None
+    if not _validate_url(config.url):
+        return None
 
     # FLM follows the Ollama API: /api/generate takes a flat string
     # prompt, not a structured messages array. Compose the system rule,
     # the cart context, and the attendant phrase into one block. The
     # `format: "json"` field tells the model to return JSON.
-    user_payload = json.dumps(
-        {"phrase": phrase, "cart_items": cart_shape.get("items", [])}
-    )
-    body = {
-        "model": config.model,
-        "prompt": f"{SYSTEM_PROMPT}\n\nINPUT:\n{user_payload}\n\nOUTPUT:",
-        "format": "json",
-        "stream": False,
-        "options": {"temperature": 0.0, "num_predict": 64},
-    }
+    try:
+        user_payload = json.dumps(
+            {"phrase": phrase, "cart_items": cart_shape.get("items", [])}
+        )
+        body = {
+            "model": config.model,
+            "prompt": f"{SYSTEM_PROMPT}\n\nINPUT:\n{user_payload}\n\nOUTPUT:",
+            "format": "json",
+            "stream": False,
+            "options": {"temperature": 0.0, "num_predict": 64},
+        }
+        encoded = json.dumps(body).encode("utf-8")
+    except (TypeError, ValueError):
+        return None
 
     try:
         request = urllib.request.Request(
             f"{config.url.rstrip('/')}/api/generate",
-            data=json.dumps(body).encode("utf-8"),
+            data=encoded,
             headers={"Content-Type": "application/json"},
             method="POST",
         )

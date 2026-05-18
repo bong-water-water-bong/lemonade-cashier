@@ -20,9 +20,28 @@ from __future__ import annotations
 import json
 import socket
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from typing import Any
+
+
+_ALLOWED_SCHEMES = frozenset({"http", "https"})
+
+
+def _validate_url(url: str) -> bool:
+    """Return True iff ``url`` parses cleanly and uses http(s).
+
+    Without this guard a misconfigured ``LC_LEMONADE_URL=file:///etc/passwd``
+    in .env would cause :func:`urllib.request.urlopen` to read a local
+    file. This module is supposed to be a network client, nothing else.
+    """
+
+    try:
+        parsed = urllib.parse.urlparse(url.strip())
+    except ValueError:
+        return False
+    return parsed.scheme in _ALLOWED_SCHEMES and bool(parsed.netloc)
 
 
 @dataclass(frozen=True)
@@ -61,6 +80,8 @@ def normalize(phrase: str, cart_shape: dict[str, Any], config: LemonadeConfig) -
 
     if not config.enabled or not phrase.strip():
         return None
+    if not _validate_url(config.url):
+        return None
 
     body = {
         "model": config.model,
@@ -79,9 +100,14 @@ def normalize(phrase: str, cart_shape: dict[str, Any], config: LemonadeConfig) -
     }
 
     try:
+        encoded = json.dumps(body).encode("utf-8")
+    except (TypeError, ValueError):
+        return None
+
+    try:
         request = urllib.request.Request(
             f"{config.url.rstrip('/')}/v1/chat/completions",
-            data=json.dumps(body).encode("utf-8"),
+            data=encoded,
             headers={"Content-Type": "application/json"},
             method="POST",
         )

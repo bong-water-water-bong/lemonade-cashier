@@ -22,6 +22,21 @@ def test_supervisor_no_match_message(seeded_db, event_log):
     assert outcome.state["items"] == []
 
 
+def test_lemonade_rejects_non_http_url(seeded_db, event_log):
+    """A misconfigured `file://` or `javascript:` URL in .env must not
+    cause the Lemonade client to make any call. It silently disables."""
+
+    from lemonade_cashier.agents.lemonade_client import LemonadeConfig, normalize
+
+    for bad in ("file:///etc/passwd", "javascript:alert(1)", "ftp://x", ""):
+        result = normalize(
+            "anything",
+            {"items": []},
+            LemonadeConfig(url=bad, enabled=True, timeout_sec=0.1),
+        )
+        assert result is None, f"expected None for {bad!r}"
+
+
 def test_lemonade_unreachable_does_not_hang(seeded_db, event_log):
     """If Lemonade is enabled but the URL is unreachable, the supervisor
     must degrade quickly and never raise."""

@@ -25,7 +25,7 @@ class FusedEvent:
     phrase: str
     confidence: float
     evidence: tuple[Observation | Utterance, ...]
-    ts: str
+    ts: str  # ISO-8601 UTC
 
 
 class FusionSource(Protocol):
