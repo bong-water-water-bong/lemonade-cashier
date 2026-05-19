@@ -44,7 +44,7 @@ jobs:
           python -m pip install "mkdocs-material>=9" "mkdocs>=1.6"
       - name: Build site
         run: mkdocs build --strict
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
