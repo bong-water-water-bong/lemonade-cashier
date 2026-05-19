@@ -18,6 +18,7 @@ Sequence of decisions for any input line:
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
@@ -173,6 +174,11 @@ class Supervisor:
         # provenance. Without it, the second pass with the canonical
         # name would resolve at high confidence and default to "typed".
         source: str = source_hint or "typed"
+        # ``delegation_id`` ties one supervisor decision to its proposal
+        # and to the resulting cart event. Minted only when we are
+        # about to *actually* call the model — purely deterministic
+        # paths produce no delegation and no extra payload key.
+        delegation_id: str | None = None
 
         if match is None or match.confidence < self.config.confidence_threshold:
             # Try LLM fallbacks in order: Lemonade, then FLM. Each is a
@@ -181,8 +187,11 @@ class Supervisor:
             # Both arms now write an agent.proposal event into the same
             # JSONL log as the cart, so an investigator can reconstruct
             # exactly what the model said for any cart.add downstream.
+            delegation_id = uuid.uuid4().hex
             cart_shape = self._cart_shape()
-            normalized, agent_name = self._call_normalizer(event.text, cart_shape)
+            normalized, agent_name = self._call_normalizer(
+                event.text, cart_shape, delegation_id=delegation_id
+            )
 
             if normalized is not None:
                 # Always record the model's response in the chain, even
@@ -196,6 +205,7 @@ class Supervisor:
                         output_phrase=normalized.candidate,
                         confidence=normalized.confidence,
                         decision="rejected",  # echoed input — no value added
+                        delegation_id=delegation_id,
                     )
                 else:
                     normalized_match = find_product(normalized.candidate)
@@ -219,6 +229,7 @@ class Supervisor:
                             output_phrase=normalized.candidate,
                             confidence=normalized.confidence,
                             decision=_decision,  # see _decision above
+                            delegation_id=delegation_id,
                         )
                     else:
                         self._record_normalizer_proposal(
@@ -227,6 +238,7 @@ class Supervisor:
                             output_phrase=normalized.candidate,
                             confidence=normalized.confidence,
                             decision="rejected",  # model named a non-SKU; ignored
+                            delegation_id=delegation_id,
                         )
 
         if match is None:
@@ -268,7 +280,12 @@ class Supervisor:
             confidence=match.confidence,
         )
         self.cart.add(line)
-        self.log.append("cart.add", _line_payload(line))
+        # Only stamp delegation_id when the model was actually used to
+        # land this line — a fuzzy match the supervisor accepted on the
+        # first pass had no model crossing, and the audit chain should
+        # reflect that.
+        cart_delegation_id = delegation_id if source == "model_proposed" else None
+        self.log.append("cart.add", _line_payload(line, delegation_id=cart_delegation_id))
         return self._outcome(f"added {match.name} x{event.quantity}")
 
     def _gate_void(self, amount: Decimal, action: str, pin: str | None) -> SupervisorOutcome | None:
@@ -472,7 +489,33 @@ class Supervisor:
     # CIT bag handlers
     # ------------------------------------------------------------------
 
-    def _call_normalizer(self, phrase: str, cart_shape: dict[str, Any]) -> tuple[Any, str]:
+    def _agent_id_for(self, agent_name: str) -> str | None:
+        """Build a stable per-instance identity for an agent.
+
+        Format: ``<agent>@<endpoint>#<model>``. Two configurations of the
+        same agent type (different ports, different models) produce
+        distinguishable ids — IBM's "non-human identity" recommendation
+        applied at the smallest reasonable granularity. Returns ``None``
+        for agents the supervisor isn't configured to call, so callers
+        can pass it through ``write`` and have the field omitted from
+        the payload.
+        """
+
+        if agent_name == "lemonade":
+            lem = self.config.lemonade
+            return f"lemonade@{lem.url}#{lem.model}"
+        if agent_name == "flm":
+            flm = self.config.flm
+            return f"flm@{flm.url}#{flm.model}"
+        return None
+
+    def _call_normalizer(
+        self,
+        phrase: str,
+        cart_shape: dict[str, Any],
+        *,
+        delegation_id: str | None = None,
+    ) -> tuple[Any, str]:
         """Try Lemonade first, then FLM. Return (NormalizedPhrase|None, agent_name).
 
         If both clients are disabled or unreachable, ``agent_name`` is
@@ -480,6 +523,10 @@ class Supervisor:
         was no model to record. This keeps the audit log honest: a
         missing agent.proposal event means *no model was asked*, not
         *the model was asked and ignored*.
+
+        ``delegation_id`` (when set) is propagated onto every
+        ``unreachable`` proposal written from this method so the
+        audit chain shows the attempt even when no model answered.
         """
 
         normalized = lemonade_normalize(phrase, cart_shape, self.config.lemonade)
@@ -497,6 +544,7 @@ class Supervisor:
                 output_phrase=None,
                 confidence=0.0,
                 decision="unreachable",
+                delegation_id=delegation_id,
             )
         if self.config.flm.enabled:
             self._record_normalizer_proposal(
@@ -505,6 +553,7 @@ class Supervisor:
                 output_phrase=None,
                 confidence=0.0,
                 decision="unreachable",
+                delegation_id=delegation_id,
             )
         return None, "none"
 
@@ -516,6 +565,7 @@ class Supervisor:
         output_phrase: Any,
         confidence: float,
         decision: proposals.Decision,
+        delegation_id: str | None = None,
     ) -> None:
         """Write a ``normalize``-kind ``agent.proposal`` event.
 
@@ -526,8 +576,14 @@ class Supervisor:
         ``_record_chat_proposal`` rather than parameterizing this one
         — keeping the kind out of the signature makes the call sites
         self-documenting.
+
+        ``agent_id`` is derived from the active config for the named
+        agent and stamped onto every proposal we write. ``delegation_id``
+        (when provided) links this proposal to the cart effect it
+        leads to.
         """
 
+        agent_id = self._agent_id_for(agent)
         try:
             registry.assert_can_emit(agent, "normalize")
         except registry.CapabilityError:
@@ -537,6 +593,8 @@ class Supervisor:
             proposals.write(
                 self.log,
                 agent=agent,
+                agent_id=agent_id,
+                delegation_id=delegation_id,
                 kind="normalize",
                 input={"phrase": input_phrase},
                 output={"error": "out_of_capability"},
@@ -547,6 +605,8 @@ class Supervisor:
         proposals.write(
             self.log,
             agent=agent,
+            agent_id=agent_id,
+            delegation_id=delegation_id,
             kind="normalize",
             input={"phrase": input_phrase},
             output={"phrase": output_phrase} if output_phrase else None,
@@ -706,8 +766,8 @@ def _build_us_manifest(amount: Decimal) -> Manifest:
     return Manifest(entries=tuple(entries))
 
 
-def _line_payload(line: CartLine) -> dict[str, Any]:
-    return {
+def _line_payload(line: CartLine, *, delegation_id: str | None = None) -> dict[str, Any]:
+    payload: dict[str, Any] = {
         "sku": line.sku,
         "name": line.name,
         "unit_price": money_str(line.unit_price),
@@ -717,6 +777,12 @@ def _line_payload(line: CartLine) -> dict[str, Any]:
         "source": line.source,
         "confidence": line.confidence,
     }
+    # Only include delegation_id when a model actually mediated this
+    # add. Deterministic adds keep their existing payload shape so
+    # downstream readers (replay, receipts, audit) are byte-stable.
+    if delegation_id is not None:
+        payload["delegation_id"] = delegation_id
+    return payload
 
 
 __all__ = [

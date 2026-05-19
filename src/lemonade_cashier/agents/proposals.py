@@ -22,14 +22,30 @@ Schema (payload of ``agent.proposal``):
 ::
 
     {
-      "agent":      "lemonade" | "flm" | "gaia" | "qa" | "summarizer",
-      "kind":       "normalize" | "chat_response" | "summarize",
-      "input":      <opaque, agent-specific>,
-      "output":     <opaque, agent-specific>,
-      "confidence": <float in [0, 1]>,
-      "decision":   "accepted" | "rejected" | "needs_confirmation" |
-                    "unreachable" | "out_of_capability"
+      "agent":         "lemonade" | "flm" | "gaia" | "qa" | "summarizer",
+      "agent_id":      <optional str — stable per agent instance>,
+      "delegation_id": <optional 32-hex str — ties proposal to consequence>,
+      "kind":          "normalize" | "chat_response" | "summarize",
+      "input":         <opaque, agent-specific>,
+      "output":        <opaque, agent-specific>,
+      "confidence":    <float in [0, 1]>,
+      "decision":      "accepted" | "rejected" | "needs_confirmation" |
+                       "unreachable" | "out_of_capability"
     }
+
+``agent`` is a type tag; ``agent_id`` is the *identity* of the running
+instance (e.g. ``lemonade@http://127.0.0.1:8000#qwen3:4b``). Two
+configs of the same agent type produce distinguishable proposals.
+
+``delegation_id`` is minted by the supervisor at the start of a
+decision that may cross the model. The same id appears on the
+``agent.proposal`` and on the ``cart.add``/``cart.remove_*`` event
+the proposal led to, so a forensic reader can grep a single id to
+recover one model-mediated decision end to end.
+
+Both fields are optional for backwards compatibility: legacy events
+written before this schema bump load with ``agent_id=None`` and
+``delegation_id=None``.
 
 The shape is opaque on purpose — different agents have different I/O
 forms — but the top-level keys are canonical so a generic UI can
@@ -72,9 +88,13 @@ class Proposal:
     output: Any
     confidence: float
     decision: Decision
+    # Optional schema additions (see module docstring). Legacy events
+    # without these fields load with both set to None.
+    agent_id: str | None = None
+    delegation_id: str | None = None
 
     def to_payload(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "agent": self.agent,
             "kind": self.kind,
             "input": self.input,
@@ -82,6 +102,13 @@ class Proposal:
             "confidence": float(self.confidence),
             "decision": self.decision,
         }
+        # Omit optional keys when absent to keep legacy receipts and
+        # grep tooling unsurprised on the deterministic path.
+        if self.agent_id is not None:
+            payload["agent_id"] = self.agent_id
+        if self.delegation_id is not None:
+            payload["delegation_id"] = self.delegation_id
+        return payload
 
     @classmethod
     def from_event(cls, event: Event) -> Proposal:
@@ -97,6 +124,8 @@ class Proposal:
         confidence = p.get("confidence", 0.0)
         if not isinstance(confidence, (int, float, str)):
             confidence = 0.0
+        agent_id = p.get("agent_id")
+        delegation_id = p.get("delegation_id")
         return cls(
             agent=str(p.get("agent", "?")),
             kind=kind,  # type: ignore[arg-type]
@@ -104,6 +133,8 @@ class Proposal:
             output=p.get("output"),
             confidence=float(confidence),
             decision=decision,  # type: ignore[arg-type]
+            agent_id=str(agent_id) if agent_id is not None else None,
+            delegation_id=str(delegation_id) if delegation_id is not None else None,
         )
 
 
@@ -116,6 +147,8 @@ def write(
     output: Any,
     confidence: float,
     decision: Decision,
+    agent_id: str | None = None,
+    delegation_id: str | None = None,
 ) -> Event:
     """Append one :data:`EVENT_TYPE` event. Returns the resulting Event.
 
@@ -127,6 +160,11 @@ def write(
     The ``out_of_capability`` decision is the only exception: it's
     used as the post-mortem record when the original capability check
     *failed*, so the registry shouldn't gate it.
+
+    ``agent_id`` and ``delegation_id`` are optional. When omitted the
+    keys are not written to the payload, so legacy readers and
+    deterministic paths stay byte-for-byte identical to pre-schema-
+    bump receipts.
     """
 
     if decision != "out_of_capability":
@@ -141,6 +179,8 @@ def write(
         output=output,
         confidence=max(0.0, min(1.0, float(confidence))),
         decision=decision,
+        agent_id=agent_id,
+        delegation_id=delegation_id,
     ).to_payload()
     return log.append(EVENT_TYPE, payload)
 
