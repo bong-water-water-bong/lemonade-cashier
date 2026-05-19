@@ -10,6 +10,8 @@ Build a local-first, offline-capable cashier assistant that runs end to
 end on a single Strix Halo workstation:
 
 - Deterministic financial core (cart, totals, cash, receipts, audit).
+- Cash-only checkout with cash-in-transit (CIT) as the operational
+  settlement path.
 - Multi-agent supervisor with **permission states per actor**.
 - Optional offline LLM-assisted parsing via Lemonade Server (CPU/iGPU)
   and FastFlowLM (NPU), with hard timeouts and graceful fallback.
@@ -39,8 +41,11 @@ end on a single Strix Halo workstation:
   `CONFIDENCE_THRESHOLD` and force attendant confirmation below it.
 - The agent never picks a SKU or sets a price. It produces a candidate
   parsed event; the deterministic core decides.
-- No real payment processing. Cash, change, and till math are local
-  arithmetic only.
+- No card, wallet, Stripe, or payment-processor path in the core.
+  Cash, change, and till math are local arithmetic only.
+- CIT is a core safety system, not an optional plugin. Cash drops,
+  pickups, bag custody, witness rules, and replayable till state stay
+  inside the audited local system.
 - No customer audio or images are persisted. Camera and ASR layers,
   when implemented, are inference-only with rolling buffers.
 - Refunds, voids, and discounts above policy thresholds require a
@@ -69,6 +74,20 @@ inventory → cart → totals → cash → receipts → audit → replay
 A PR that adds a layer to the right of the current frontier should be
 rejected unless the frontier is reliably green.
 
+## Contribution boundary
+
+Once the cash-only core is complete, outside pull requests must not
+rewrite or dilute that core payment model. The core feature is cash
+checkout plus CIT custody. Stripe, card readers, wallets, payment
+gateways, and similar providers may be proposed as separate optional
+integration layers, but they are not core features and must never be
+required for the cashier to run.
+
+Barter is allowed as a future attendant-approved exchange record, but it
+must be explicit, local, replayable, and separate from processor-backed
+payments. It must not silently bypass inventory, audit, tax, or policy
+rules.
+
 ## Definition of done for any change
 
 - `make test` passes.
@@ -91,7 +110,8 @@ rejected unless the frontier is reliably green.
 
 ## Do not build yet
 
-- Production payment integration (Stripe, card readers).
+- Production payment integrations in core (Stripe, card readers,
+  wallets, payment gateways).
 - Cloud sync.
 - Customer identity storage.
 - Self-modifying agents.

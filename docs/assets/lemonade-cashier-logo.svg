@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="480" viewBox="0 0 1440 480" role="img" aria-labelledby="title desc">
   <title id="title">Lemonade Cashier app logo</title>
-  <desc id="desc">A lemon cashier beside a point-of-sale dashboard showing product intake, barcode scan, cart total, local AI, audit replay, cash, and offline operation.</desc>
+  <desc id="desc">A lemon cashier beside a point-of-sale dashboard with the slogans CASH is King and Barter is fine, showing cash-only checkout, CIT custody, barcode scan, audit replay, and offline operation.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#f8fbff"/>
@@ -93,9 +93,11 @@
   <g transform="translate(742 88)">
     <text x="0" y="78" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="78" font-weight="900" letter-spacing="0" fill="#101820">Lemonade</text>
     <text x="3" y="152" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="72" font-weight="900" letter-spacing="0" fill="#1f6f8b">Cashier</text>
-    <text x="6" y="194" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="24" font-weight="700" fill="#334155">local POS core + Lemonade SDK agents</text>
+    <text x="6" y="194" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="34" font-weight="900" fill="#854d0e">CASH is King</text>
+    <text x="8" y="228" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="22" font-weight="800" fill="#334155">Barter is fine</text>
+    <text x="8" y="254" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" fill="#475569">cash-only CIT core + Lemonade SDK agents</text>
 
-    <g transform="translate(6 230)">
+    <g transform="translate(6 282)">
       <rect x="0" y="0" width="126" height="38" rx="19" fill="#101820"/>
       <text x="17" y="25" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="16" font-weight="800" fill="#f8fafc">checkout</text>
       <rect x="140" y="0" width="116" height="38" rx="19" fill="#fff3c4"/>
@@ -106,12 +108,12 @@
       <text x="417" y="25" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="16" font-weight="800" fill="#1d4ed8">audit</text>
     </g>
 
-    <g transform="translate(6 292)">
+    <g transform="translate(6 344)">
       <path d="M0 0 h520" stroke="#cbd5e1" stroke-width="3" stroke-linecap="round"/>
       <circle cx="20" cy="0" r="9" fill="#ffd447"/>
       <text x="40" y="7" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17" font-weight="700" fill="#475569">product intake</text>
       <circle cx="190" cy="0" r="9" fill="#42d392"/>
-      <text x="210" y="7" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17" font-weight="700" fill="#475569">cart totals</text>
+      <text x="210" y="7" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17" font-weight="700" fill="#475569">cash totals</text>
       <circle cx="330" cy="0" r="9" fill="#60a5fa"/>
       <text x="350" y="7" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="17" font-weight="700" fill="#475569">replay</text>
     </g>

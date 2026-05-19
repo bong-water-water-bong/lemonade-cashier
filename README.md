@@ -9,7 +9,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 <p align="center">
-  <img src="docs/assets/lemonade-cashier-logo.svg" alt="Lemonade Cashier logo: local POS core, product intake, cart totals, audit replay, and Lemonade SDK agents" width="900">
+  <img src="docs/assets/lemonade-cashier-logo.svg" alt="Lemonade Cashier logo with the slogans CASH is King and Barter is fine, showing local cash checkout, CIT custody, audit replay, and Lemonade SDK agents" width="900">
 </p>
 
 > A local-first cashier app for the Lemonade SDK ecosystem.
@@ -19,6 +19,13 @@ Lemonade Cashier is an offline-capable cashier assistant for the AMD
 a practical retail app built around [Lemonade Server](https://github.com/lemonade-sdk/lemonade):
 deterministic checkout first, local Lemonade-powered agents second, and
 camera/vision product onboarding as the next layer.
+
+The core checkout model is intentionally **cash-only**. Cash tender,
+change, receipts, audit replay, and cash-in-transit custody are the
+first-class financial path. Stripe, card readers, wallets, and payment
+processors can exist later as optional integrations, but they are not
+part of the core cashier. Barter can be supported as an attendant-approved
+exchange record later, but it must remain explicit, local, and auditable.
 
 Built on the spec
 *Lemonade Cashier — Complete Strix Halo Build Specification* with a
@@ -53,6 +60,11 @@ The app boundary is deliberate: Lemonade can propose normalized cashier
 events, but it never becomes the authority for SKU, price, voids, refunds,
 cash, or transaction close.
 
+Payment boundary: the repository core is a cash-only cashier and CIT
+system. Contributions that add payment providers belong behind optional
+integration boundaries, not in `core/`, not in the deterministic close path,
+and not as required runtime services.
+
 ---
 
 ## What's in this Phase 1.5 drop
@@ -66,7 +78,7 @@ cash, or transaction close.
 | Receipts (text + JSON) | ✅ | `audit.receipts` |
 | Append-only event log | ✅ | JSONL + hash chain (`audit.eventlog`) |
 | Replay | ✅ | Pure-function replay of any closed transaction |
-| CIT (cash-in-transit) | ✅ | Drops, pickups, till counts, two-person rule |
+| CIT (cash-in-transit) | ✅ | Core cash custody: drops, pickups, till counts, two-person rule |
 | CIT bags (chain of custody) | ✅ | Sealed → handoff → received → reconciled/discrepancy |
 | Safety / risk scoring | ✅ | `safety.risk` |
 | Safety: hashed PIN store | ✅ | PBKDF2-SHA256 200k, constant-time compare |
@@ -296,6 +308,9 @@ lemonade-cashier/
   send only the current cart shape and a strict response schema.
 - **Receipts are append-only and hash-chained.** Any tamper or gap is
   detectable by `make replay`.
+- **Cash-only is the core payment model.** CIT custody, drops, pickups,
+  and bag handoff are audited locally. External payment providers are
+  optional integrations only.
 
 The long version lives in [`docs/SAFETY.md`](docs/SAFETY.md).
 

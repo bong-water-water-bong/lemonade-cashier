@@ -32,6 +32,11 @@ randomness. `audit/` is the first ring that touches the filesystem.
 ring that can talk to a model. `sensors/` is the first ring that can
 talk to hardware.
 
+The payment model is cash-only at the core. Card readers, Stripe, wallets,
+and payment gateways are not inner-ring concerns. If they ever exist, they
+belong in optional outer integrations that can be disabled without changing
+cart, totals, cash tender, receipts, audit replay, or CIT behavior.
+
 ## Why Decimal everywhere
 
 Floats round wrong for money. `0.1 + 0.2 != 0.3`, and the discrepancy
@@ -113,6 +118,12 @@ are configurable in `.env`.
 
 Each CIT event lands in the same JSONL as cart events, with its own
 event type and the same hash chain. There is no separate CIT log.
+
+CIT is the settlement and custody model for the core cashier. It is not a
+reporting afterthought. A cash-only autonomous deployment depends on this
+chain: tendered cash enters the till, drops move cash to the safe, bag
+custody records handoff, and replay reconstructs the till and custody state
+without trusting a remote processor.
 
 ## What the sensors layer will do (later)
 

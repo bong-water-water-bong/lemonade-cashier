@@ -102,6 +102,34 @@ The cashier does not satisfy any of these today. So it does not do
 agentic commerce. When it does, those three sentences become tests in
 `safety/policy.py`. Until then, this section exists to remind us why.
 
+## Why the core is cash-only
+
+Lemonade Cashier's core financial path is cash tender, change, receipts,
+audit replay, and cash-in-transit custody. That is a permanent boundary for
+the core, not a temporary omission waiting for card processing.
+
+Cash-only keeps the innermost system local and replayable:
+
+- no payment processor credentials in the close path
+- no network dependency to complete a sale
+- no third-party state that can disagree with the JSONL event log
+- no cardholder or wallet data stored by the cashier
+- no merchant-of-record ambiguity
+
+CIT is therefore part of the safety system. Drops, pickups, till counts,
+bag sealing, handoff, received state, discrepancy state, and witness rules
+belong in the audited local event stream.
+
+Stripe, card readers, wallets, and other payment providers may exist as
+optional outer integrations later. They must not be required to run the
+cashier, must not live in `core/`, and must not replace the cash/CIT close
+path.
+
+Barter is different from processor-backed payment. It can be modeled later
+as an attendant-approved exchange event, but it must stay explicit, local,
+replayable, and policy-gated. It must not become an unpriced shortcut around
+inventory, taxes, audit, or supervisor approval.
+
 ## Where to put new safety rules
 
 - A new monetary invariant → `tests/test_money.py`.
