@@ -55,12 +55,24 @@ future PR can claim a layer is complete.
 - The CLI's live `state()` and `replay(log)` produce **byte-identical
   JSON** for any closed transaction. This is the central test.
 
-## 8. CIT ✅
+## 8. CIT ✅ (v2 — chain of custody)
 
 - `safety.cit` tracks till opens/closes, drops, pickups, witness
   sign-offs.
+- `safety.bags` tracks the full bag lifecycle:
+  `sealed → handoff → received → reconciled | discrepancy`.
+- Two-party verification at handoff: cashier `attendant_id` and
+  `carrier_id` must differ. Same-ID handoff is rejected.
+- Manifest is a `tuple[DenominationCount, ...]` (same shape as
+  `ChangeBreakdown`) — the sealed total is auditable per denomination,
+  not just gross.
+- Discrepancies are events, not exceptions:
+  `cit.bag.discrepancy` carries a signed `delta` (negative = short,
+  positive = over).
 - All CIT events live in the same JSONL as cart events, sharing the
-  hash chain.
+  hash chain. `audit.replay` exposes a `state.bags` dict keyed by
+  `bag_id` so any UI can render in-flight bags without depending on
+  `safety.bags`.
 
 ## 9. Safety ✅
 

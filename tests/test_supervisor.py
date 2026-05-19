@@ -86,6 +86,61 @@ def test_gaia_bridge_refuses_sensitive_state():
     assert _contains_sensitive({"items": [{"sku": "X"}], "total": "1.00"}) is False
 
 
+def test_bag_seal_exact_manifest_no_false_discrepancy(seeded_db, event_log):
+    """Sealing $250.50 and receiving $250.50 must reconcile cleanly — not
+    flag a fraudulent discrepancy from a truncated manifest. Regression
+    test for the independent-reviewer finding on the demo manifest."""
+
+    from lemonade_cashier.audit.replay import replay
+
+    sup = Supervisor(event_log, SupervisorConfig(attendant_id="alice"))
+    sup.handle_text("bag seal 250.50")
+    events = event_log.read_all()
+    bag_id = next(e.payload["bag_id"] for e in events if e.type == "cit.bag.sealed")
+
+    sup.handle_text(f"bag handoff {bag_id} bob")
+    out = sup.handle_text(f"bag receive {bag_id} bob 250.50")
+    assert "reconciled" in out.message
+    assert "discrepancy" not in out.message
+
+    state = replay(event_log.read_all()).to_state()
+    bag = state["bags"][bag_id]
+    assert bag["status"] == "reconciled"
+    assert bag["manifest_total"] == "250.50"
+    assert bag["counted_total"] == "250.50"
+
+
+def test_bag_prefixed_alias_resolves_to_product(seeded_db, event_log):
+    """End-to-end: 'bag of chips' must hit the inventory and add the
+    CHP001 SKU at $2.49, not be intercepted by the bag-verb parser."""
+
+    sup = Supervisor(event_log, SupervisorConfig(attendant_id="alice"))
+    out = sup.handle_text("bag of chips")
+    assert "potato chips" in out.message.lower()
+    items = out.state["items"]
+    assert len(items) == 1
+    assert items[0]["sku"] == "CHP001"
+
+
+def test_bag_seal_rejects_invalid_amount(seeded_db, event_log):
+    """A typo like 'bag seal abx' returns a clean error, not an
+    uncaught MoneyError out of the supervisor."""
+
+    sup = Supervisor(event_log, SupervisorConfig(attendant_id="alice"))
+    out = sup.handle_text("bag seal abx")
+    assert "invalid amount" in out.message
+
+
+def test_bag_receive_rejects_invalid_amount(seeded_db, event_log):
+    sup = Supervisor(event_log, SupervisorConfig(attendant_id="alice"))
+    sup.handle_text("bag seal 100.00")
+    events = event_log.read_all()
+    bag_id = next(e.payload["bag_id"] for e in events if e.type == "cit.bag.sealed")
+    sup.handle_text(f"bag handoff {bag_id} bob")
+    out = sup.handle_text(f"bag receive {bag_id} bob notanumber")
+    assert "invalid amount" in out.message
+
+
 def test_lemonade_rejects_non_loopback_host(seeded_db, event_log):
     """LC_LEMONADE_URL pointing at a remote host must be refused unless
     allow_remote is explicitly set."""

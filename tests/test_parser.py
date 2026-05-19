@@ -65,6 +65,55 @@ def test_tender_rejects_empty_amount():
     assert parse_event("tender ").action == "help"
 
 
+def test_bag_seal_grammar():
+    event = parse_event("bag seal 500")
+    assert event.action == "bag.seal"
+    assert event.amount == "500"
+    # Strips a leading dollar sign too.
+    event = parse_event("bag seal $250.50")
+    assert event.amount == "250.50"
+
+
+def test_bag_handoff_grammar():
+    event = parse_event("bag handoff bag-abc carrier-1")
+    assert event.action == "bag.handoff"
+    assert event.bag_id == "bag-abc"
+    assert event.carrier_id == "carrier-1"
+
+
+def test_bag_receive_grammar():
+    event = parse_event("bag receive bag-abc carrier-1 99.50")
+    assert event.action == "bag.receive"
+    assert event.bag_id == "bag-abc"
+    assert event.carrier_id == "carrier-1"
+    assert event.amount == "99.50"
+
+
+def test_bag_reconcile_grammar():
+    event = parse_event("bag reconcile bag-abc")
+    assert event.action == "bag.reconcile"
+    assert event.bag_id == "bag-abc"
+
+
+def test_bag_malformed_known_verb_returns_help():
+    # Missing arguments after a known verb → return help (don't silently
+    # apply with zero amount, missing carrier, etc.).
+    assert parse_event("bag seal").action == "help"
+    assert parse_event("bag handoff bag-1").action == "help"
+    assert parse_event("bag receive bag-1 c1").action == "help"
+
+
+def test_bag_prefixed_aliases_still_resolve_as_products():
+    """Critical regression case: 'bag of chips' and 'bag of coffee' are
+    real product aliases in sample_products.csv. They must fall through
+    to add_product, not get eaten by the bag-verb prefix check."""
+
+    for phrase in ["bag of chips", "bag of coffee", "bag random-verb"]:
+        event = parse_event(phrase)
+        assert event.action == "add_product", phrase
+        assert event.text == phrase
+
+
 def test_close():
     assert parse_event("close").action == "close"
     assert parse_event("done").action == "close"

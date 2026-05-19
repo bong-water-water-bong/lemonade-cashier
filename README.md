@@ -32,6 +32,7 @@ rule-based primary path.
 | Append-only event log | ✅ | JSONL + hash chain (`audit.eventlog`) |
 | Replay | ✅ | Pure-function replay of any closed transaction |
 | CIT (cash-in-transit) | ✅ | Drops, pickups, till counts, two-person rule |
+| CIT bags (chain of custody) | ✅ | Sealed → handoff → received → reconciled/discrepancy |
 | Safety / risk scoring | ✅ | `safety.risk` |
 | Agent supervisor (multi-agent) | ✅ | Permission states per actor |
 | Lemonade Server client | ✅ | HTTP fallback parser (port 8000) |

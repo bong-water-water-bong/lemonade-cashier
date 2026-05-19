@@ -53,6 +53,9 @@ class ParsedEvent:
     quantity: int = 1
     sku: str | None = None
     amount: str | None = None  # money string ("5.00") for tender actions
+    bag_id: str | None = None
+    carrier_id: str | None = None
+    args: tuple[str, ...] = ()  # extra positional tokens (e.g. denominations)
 
 
 def parse_event(raw_text: str) -> ParsedEvent:
@@ -95,6 +98,44 @@ def parse_event(raw_text: str) -> ParsedEvent:
 
     if text in {"close", "done", "checkout"}:
         return ParsedEvent(action="close")
+
+    # CIT bag verbs. Grammar:
+    #   bag seal <amount>                            (auto-generated bag_id + seal_id)
+    #   bag handoff <bag_id> <carrier_id>
+    #   bag receive <bag_id> <carrier_id> <counted>
+    #   bag reconcile <bag_id>
+    #
+    # Critically: only the FOUR known bag verbs intercept. Anything else
+    # ("bag of chips", "bag of coffee" — both valid product aliases)
+    # falls through to add_product so the inventory lookup can run.
+    # See the cashier-agent-recommendations memo: schema-bounded matching
+    # beats vibes-bounded matching; the parser must not pre-empt the
+    # catalog.
+    _BAG_VERBS = {"seal", "handoff", "receive", "reconcile"}
+    if text.startswith("bag "):
+        tokens = text.split()
+        if len(tokens) >= 2 and tokens[1] in _BAG_VERBS:
+            verb = tokens[1]
+            rest = tokens[2:]
+            if verb == "seal" and len(rest) == 1:
+                amount = rest[0].lstrip("$")
+                return ParsedEvent(action="bag.seal", amount=amount)
+            if verb == "handoff" and len(rest) == 2:
+                return ParsedEvent(
+                    action="bag.handoff", bag_id=rest[0], carrier_id=rest[1]
+                )
+            if verb == "receive" and len(rest) == 3:
+                return ParsedEvent(
+                    action="bag.receive",
+                    bag_id=rest[0],
+                    carrier_id=rest[1],
+                    amount=rest[2].lstrip("$"),
+                )
+            if verb == "reconcile" and len(rest) == 1:
+                return ParsedEvent(action="bag.reconcile", bag_id=rest[0])
+            return ParsedEvent(action="help")
+        # Not a bag verb — fall through to add_product so "bag of chips"
+        # can still resolve via the alias table.
 
     words = text.split()
     if len(words) >= 3 and words[-2:] == ["of", "those"]:
