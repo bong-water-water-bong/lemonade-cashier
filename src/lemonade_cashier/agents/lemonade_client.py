@@ -18,13 +18,11 @@ fix that lets it actually load NPU models).
 from __future__ import annotations
 
 import json
-import socket
 import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from typing import Any
-
 
 _ALLOWED_SCHEMES = frozenset({"http", "https"})
 # Loopback only by default. The whole design of this module is "talk to
@@ -142,7 +140,7 @@ def chat_completions(
         )
         with urllib.request.urlopen(request, timeout=config.timeout_sec) as resp:
             raw = resp.read().decode("utf-8")
-    except (urllib.error.URLError, socket.timeout, TimeoutError, ConnectionError):
+    except (urllib.error.URLError, TimeoutError, ConnectionError):
         return None
 
     try:
@@ -158,7 +156,9 @@ def chat_completions(
     return str(content)
 
 
-def normalize(phrase: str, cart_shape: dict[str, Any], config: LemonadeConfig) -> NormalizedPhrase | None:
+def normalize(
+    phrase: str, cart_shape: dict[str, Any], config: LemonadeConfig
+) -> NormalizedPhrase | None:
     """Ask the local Lemonade Server to normalize ``phrase``.
 
     Returns ``None`` on disabled, unreachable, timed-out, or malformed
@@ -201,4 +201,4 @@ def normalize(phrase: str, cart_shape: dict[str, Any], config: LemonadeConfig) -
     return NormalizedPhrase(candidate=candidate, confidence=confidence, raw=parsed)
 
 
-__all__ = ["LemonadeConfig", "NormalizedPhrase", "SYSTEM_PROMPT", "normalize"]
+__all__ = ["SYSTEM_PROMPT", "LemonadeConfig", "NormalizedPhrase", "normalize"]

@@ -20,15 +20,15 @@ class PolicyOutcome:
     reason: str
 
     @classmethod
-    def ok(cls) -> "PolicyOutcome":
+    def ok(cls) -> PolicyOutcome:
         return cls(allowed=True, requires_pin=False, reason="")
 
     @classmethod
-    def needs_pin(cls, reason: str) -> "PolicyOutcome":
+    def needs_pin(cls, reason: str) -> PolicyOutcome:
         return cls(allowed=True, requires_pin=True, reason=reason)
 
     @classmethod
-    def deny(cls, reason: str) -> "PolicyOutcome":
+    def deny(cls, reason: str) -> PolicyOutcome:
         return cls(allowed=False, requires_pin=False, reason=reason)
 
 
@@ -51,9 +51,7 @@ def can_void(
 ) -> PolicyOutcome:
     amt = abs(to_money(line_total))
     if amt >= to_money(threshold):
-        return PolicyOutcome.needs_pin(
-            f"void of ${amt} ≥ ${threshold} requires supervisor"
-        )
+        return PolicyOutcome.needs_pin(f"void of ${amt} ≥ ${threshold} requires supervisor")
     return PolicyOutcome.ok()
 
 
@@ -64,9 +62,7 @@ def can_refund(
 ) -> PolicyOutcome:
     amt = abs(to_money(amount))
     if amt >= to_money(threshold):
-        return PolicyOutcome.needs_pin(
-            f"refund of ${amt} ≥ ${threshold} requires supervisor"
-        )
+        return PolicyOutcome.needs_pin(f"refund of ${amt} ≥ ${threshold} requires supervisor")
     return PolicyOutcome.ok()
 
 
@@ -77,9 +73,7 @@ def can_discount(
 ) -> PolicyOutcome:
     amt = abs(to_money(amount))
     if amt >= to_money(threshold):
-        return PolicyOutcome.needs_pin(
-            f"discount of ${amt} ≥ ${threshold} requires supervisor"
-        )
+        return PolicyOutcome.needs_pin(f"discount of ${amt} ≥ ${threshold} requires supervisor")
     return PolicyOutcome.ok()
 
 

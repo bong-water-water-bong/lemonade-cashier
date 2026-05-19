@@ -37,9 +37,7 @@ def to_money(value: object) -> Decimal:
     """
 
     if isinstance(value, float):
-        raise MoneyError(
-            "float values are not allowed for money; use Decimal or a string"
-        )
+        raise MoneyError("float values are not allowed for money; use Decimal or a string")
     if isinstance(value, Decimal):
         candidate = value
     elif isinstance(value, int):
@@ -81,10 +79,7 @@ def multiply(value: Decimal, factor: int | Decimal) -> Decimal:
 
     if isinstance(factor, float):
         raise MoneyError("float factor is not allowed; use int or Decimal")
-    if isinstance(factor, int):
-        result = value * Decimal(factor)
-    else:
-        result = value * factor
+    result = value * Decimal(factor) if isinstance(factor, int) else value * factor
     return _quantize(result, Q_INTERNAL)
 
 
@@ -95,10 +90,10 @@ def _quantize(value: Decimal, exponent: Decimal) -> Decimal:
 
 
 __all__ = [
-    "MoneyError",
     "Q_DISPLAY",
     "Q_INTERNAL",
     "ZERO",
+    "MoneyError",
     "add",
     "money_str",
     "multiply",

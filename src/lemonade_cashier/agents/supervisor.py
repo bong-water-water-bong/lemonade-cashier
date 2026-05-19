@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 from ..audit.eventlog import EventLog
@@ -28,11 +29,13 @@ from ..core.inventory import ProductMatch, find_product
 from ..core.money import money_str, multiply, to_money
 from ..core.totals import compute_totals
 from ..safety import lockout, pins, policy
+from ..safety.bags import Manifest
 from . import proposals, registry
-from .flm_client import FLMConfig, normalize as flm_normalize
-from .lemonade_client import LemonadeConfig, normalize as lemonade_normalize
+from .flm_client import FLMConfig
+from .flm_client import normalize as flm_normalize
+from .lemonade_client import LemonadeConfig
+from .lemonade_client import normalize as lemonade_normalize
 from .parser import ParsedEvent, parse_event
-
 
 CONFIDENCE_THRESHOLD = 0.8
 
@@ -49,7 +52,7 @@ class SupervisorConfig:
     # "supervisor"; the matching PIN must exist in the pin store.
     supervisor_id: str = "supervisor"
     # Path to the PIN store JSON. None → use safety.pins.DEFAULT_PIN_STORE.
-    pin_store: object = None  # Path | str | None at runtime
+    pin_store: Path | str | None = None
 
 
 @dataclass
@@ -148,9 +151,7 @@ class Supervisor:
         if event.action == "bag.reconcile":
             return self._bag_reconcile(event.bag_id or "")
         if event.action == "add_product":
-            return self._add_product(
-                event, confirmed=confirmed, source_hint=source_hint
-            )
+            return self._add_product(event, confirmed=confirmed, source_hint=source_hint)
 
         return self._outcome(f"unknown action: {event.action}")
 
@@ -207,9 +208,8 @@ class Supervisor:
                         # though the supervisor is about to accept.
                         # Decision must mirror what the supervisor
                         # actually does, not a stale snapshot.
-                        if confirmed:
-                            _decision = "accepted"
-                        elif match.confidence >= self.config.confidence_threshold:
+                        _decision: proposals.Decision
+                        if confirmed or match.confidence >= self.config.confidence_threshold:
                             _decision = "accepted"
                         else:
                             _decision = "needs_confirmation"
@@ -230,9 +230,7 @@ class Supervisor:
                         )
 
         if match is None:
-            return self._outcome(
-                f"no product matched '{event.text}'. try a clearer name."
-            )
+            return self._outcome(f"no product matched '{event.text}'. try a clearer name.")
 
         if match.confidence < self.config.confidence_threshold and not confirmed:
             return SupervisorOutcome(
@@ -273,9 +271,7 @@ class Supervisor:
         self.log.append("cart.add", _line_payload(line))
         return self._outcome(f"added {match.name} x{event.quantity}")
 
-    def _gate_void(
-        self, amount: Decimal, action: str, pin: str | None
-    ) -> SupervisorOutcome | None:
+    def _gate_void(self, amount: Decimal, action: str, pin: str | None) -> SupervisorOutcome | None:
         """Check policy.can_void(amount); if it demands a PIN, route via
         :meth:`_check_supervisor_pin`. Returns:
 
@@ -313,15 +309,11 @@ class Supervisor:
         self.log.append("cart.remove_last", {"sku": removed.sku})
         return self._outcome(f"removed {removed.name}")
 
-    def _remove_named(
-        self, name: str, *, pin: str | None = None
-    ) -> SupervisorOutcome:
+    def _remove_named(self, name: str, *, pin: str | None = None) -> SupervisorOutcome:
         match = find_product(name)
         if match is None:
             return self._outcome(f"no product matched '{name}'")
-        existing = next(
-            (line for line in self.cart.lines if line.sku == match.sku), None
-        )
+        existing = next((line for line in self.cart.lines if line.sku == match.sku), None)
         if existing is None:
             return self._outcome(f"{match.name} is not in the cart")
         blocked = self._gate_void(existing.line_total, "void_named", pin)
@@ -334,9 +326,7 @@ class Supervisor:
         self.log.append("cart.remove_sku", {"sku": match.sku})
         return self._outcome(f"removed {match.name}")
 
-    def _set_last_quantity(
-        self, quantity: int, *, pin: str | None = None
-    ) -> SupervisorOutcome:
+    def _set_last_quantity(self, quantity: int, *, pin: str | None = None) -> SupervisorOutcome:
         if not self.cart.last_sku:
             return self._outcome("no item to adjust")
         last_line = next(
@@ -347,9 +337,7 @@ class Supervisor:
             return self._outcome("could not set quantity")
         # Reducing quantity is a partial void — gate on the delta value.
         if quantity < last_line.quantity:
-            delta_value = multiply(
-                last_line.unit_price, last_line.quantity - quantity
-            )
+            delta_value = multiply(last_line.unit_price, last_line.quantity - quantity)
             blocked = self._gate_void(delta_value, "void_quantity_reduction", pin)
             if blocked is not None:
                 return blocked
@@ -421,9 +409,7 @@ class Supervisor:
     # Supervisor-PIN gate
     # ------------------------------------------------------------------
 
-    def _check_supervisor_pin(
-        self, pin: str | None, action: str
-    ) -> SupervisorOutcome | None:
+    def _check_supervisor_pin(self, pin: str | None, action: str) -> SupervisorOutcome | None:
         """Verify a supervisor PIN before a privileged action.
 
         Returns:
@@ -454,9 +440,7 @@ class Supervisor:
         # treat it as a failed attempt (so it shows up in lockout state
         # + the EOS report) and surface the underlying error.
         try:
-            ok = pins.verify_pin(
-                self.config.supervisor_id, pin, path=self.config.pin_store
-            )
+            ok = pins.verify_pin(self.config.supervisor_id, pin, path=self.config.pin_store)
         except pins.PinError as exc:
             ok = False
             store_error: Exception | None = exc
@@ -464,9 +448,7 @@ class Supervisor:
             store_error = None
 
         try:
-            lockout.record_pin_attempt(
-                self.log, self.config.supervisor_id, success=ok
-            )
+            lockout.record_pin_attempt(self.log, self.config.supervisor_id, success=ok)
         except lockout.LockoutError as exc:
             return self._outcome(f"PIN attempt rejected: {exc}")
         if not ok:
@@ -490,9 +472,7 @@ class Supervisor:
     # CIT bag handlers
     # ------------------------------------------------------------------
 
-    def _call_normalizer(
-        self, phrase: str, cart_shape: dict[str, Any]
-    ) -> tuple[Any, str]:
+    def _call_normalizer(self, phrase: str, cart_shape: dict[str, Any]) -> tuple[Any, str]:
         """Try Lemonade first, then FLM. Return (NormalizedPhrase|None, agent_name).
 
         If both clients are disabled or unreachable, ``agent_name`` is
@@ -589,7 +569,7 @@ class Supervisor:
         """
 
         from ..core.money import MoneyError
-        from ..safety.bags import BagError, DenominationCount, Manifest, seal_bag
+        from ..safety.bags import BagError, seal_bag
 
         try:
             amt = to_money(amount)
@@ -620,9 +600,7 @@ class Supervisor:
             return self._outcome(f"handoff rejected: {exc}")
         return self._outcome(f"handed off {bag_id} to {carrier_id}")
 
-    def _bag_receive(
-        self, bag_id: str, carrier_id: str, counted_amount: str
-    ) -> SupervisorOutcome:
+    def _bag_receive(self, bag_id: str, carrier_id: str, counted_amount: str) -> SupervisorOutcome:
         """Carrier records the counted total, then we automatically emit
         reconciled or discrepancy based on the comparison to the
         manifest. This is convenience: a real counting authority would
@@ -697,7 +675,7 @@ class Supervisor:
         return {"items": [line.to_state() for line in self.cart.lines]}
 
 
-def _build_us_manifest(amount: Decimal):
+def _build_us_manifest(amount: Decimal) -> Manifest:
     """Greedy-break ``amount`` into US denominations as a bag manifest.
 
     Uses the same denomination set and algorithm as
@@ -708,7 +686,8 @@ def _build_us_manifest(amount: Decimal):
     """
 
     from ..core.cash import DEFAULT_DENOMINATIONS
-    from ..core.money import to_display, ZERO as MONEY_ZERO
+    from ..core.money import ZERO as MONEY_ZERO
+    from ..core.money import to_display
     from ..safety.bags import DenominationCount, Manifest
 
     remaining = to_display(amount)

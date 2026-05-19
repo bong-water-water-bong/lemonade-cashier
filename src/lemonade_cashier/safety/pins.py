@@ -44,7 +44,7 @@ import os
 import secrets
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final
+from typing import Any, Final
 
 PROJECT_ROOT: Final = Path(__file__).resolve().parents[3]
 DEFAULT_PIN_STORE: Final = PROJECT_ROOT / "data" / "pins.json"
@@ -91,9 +91,7 @@ def _resolve_path(path: Path | str | None) -> Path | str:
     return DEFAULT_PIN_STORE
 
 
-def set_pin(
-    actor_id: str, pin: str, *, path: Path | str | None = None
-) -> None:
+def set_pin(actor_id: str, pin: str, *, path: Path | str | None = None) -> None:
     """Store ``pin`` for ``actor_id``. Overwrites any prior entry."""
 
     actor_id = _validate_actor_id(actor_id)
@@ -110,9 +108,7 @@ def set_pin(
     _save(target, store)
 
 
-def verify_pin(
-    actor_id: str, pin: str, *, path: Path | str | None = None
-) -> bool:
+def verify_pin(actor_id: str, pin: str, *, path: Path | str | None = None) -> bool:
     """Return True iff ``pin`` matches the stored value for ``actor_id``.
 
     Returns False on any of: actor not in store, PIN mismatch, missing
@@ -145,9 +141,7 @@ def verify_pin(
     return hmac.compare_digest(candidate, stored_key)
 
 
-def remove_pin(
-    actor_id: str, *, path: Path | str | None = None
-) -> bool:
+def remove_pin(actor_id: str, *, path: Path | str | None = None) -> bool:
     """Delete an actor's PIN entry. Returns True if an entry was removed."""
 
     actor_id = _validate_actor_id(actor_id)
@@ -189,16 +183,14 @@ def _validate_pin(pin: str) -> None:
     if not isinstance(pin, str):
         raise PinError(f"pin must be a string; got {type(pin).__name__}")
     if not MIN_PIN_LENGTH <= len(pin) <= MAX_PIN_LENGTH:
-        raise PinError(
-            f"pin length must be in [{MIN_PIN_LENGTH}, {MAX_PIN_LENGTH}]"
-        )
+        raise PinError(f"pin length must be in [{MIN_PIN_LENGTH}, {MAX_PIN_LENGTH}]")
 
 
 def _derive(pin: str, salt: bytes, iterations: int) -> bytes:
     return hashlib.pbkdf2_hmac("sha256", pin.encode("utf-8"), salt, iterations, KEY_BYTES)
 
 
-def _load(path: Path | str) -> dict:
+def _load(path: Path | str) -> dict[str, Any]:
     p = Path(path)
     if not p.exists():
         return {
@@ -216,7 +208,7 @@ def _load(path: Path | str) -> dict:
     return raw
 
 
-def _save(path: Path | str, store: dict) -> None:
+def _save(path: Path | str, store: dict[str, Any]) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     # Write to a temp file in the same directory then atomic rename.

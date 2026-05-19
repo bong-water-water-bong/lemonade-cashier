@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -16,8 +16,7 @@ from lemonade_cashier.safety.bags import (
 from lemonade_cashier.safety.cit import open_till, record_drop
 from lemonade_cashier.safety.report import build, save
 
-
-T0 = datetime(2026, 5, 18, 12, 0, 0, tzinfo=timezone.utc)
+T0 = datetime(2026, 5, 18, 12, 0, 0, tzinfo=UTC)
 
 
 def test_empty_report_shape(event_log):
@@ -40,9 +39,16 @@ def test_report_with_activity(event_log):
     event_log.append("transaction.open", {"attendant": "alice", "tax_rate": "0.15"})
     event_log.append(
         "cart.add",
-        {"sku": "X", "name": "x", "unit_price": "1.00", "taxable": True,
-         "quantity": 1, "actor": "attendant", "source": "typed",
-         "confidence": 1.0},
+        {
+            "sku": "X",
+            "name": "x",
+            "unit_price": "1.00",
+            "taxable": True,
+            "quantity": 1,
+            "actor": "attendant",
+            "source": "typed",
+            "confidence": 1.0,
+        },
     )
     open_till(event_log, "alice", Decimal("100.00"))
     record_drop(event_log, "alice", Decimal("25.00"))

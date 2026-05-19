@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from lemonade_cashier.audit.replay import replay, replay_log
 from lemonade_cashier.agents.supervisor import Supervisor, SupervisorConfig
+from lemonade_cashier.audit.replay import replay, replay_log
 from lemonade_cashier.core.money import to_money
 
 
@@ -12,7 +12,7 @@ def test_replay_reconstructs_live_state(seeded_db, event_log):
     supervisor.handle_text("apple")
     supervisor.handle_text("two of those")
     supervisor.handle_text("milk")
-    live = supervisor._state()  # noqa: SLF001 — internal access ok in tests
+    live = supervisor._state()
 
     replayed = replay(event_log.read_all()).to_state()
     # The live state has voids_in_txn; the replay doesn't track it
@@ -66,9 +66,7 @@ def test_replay_round_trips_cit_events(event_log):
 
     open_till(event_log, "alice", Decimal("100.00"))
     record_drop(event_log, "alice", Decimal("25.00"))
-    record_drop(
-        event_log, "alice", DEFAULT_TWO_PERSON_THRESHOLD, witness_id="bob"
-    )
+    record_drop(event_log, "alice", DEFAULT_TWO_PERSON_THRESHOLD, witness_id="bob")
     record_pickup(event_log, "alice", Decimal("10.00"))
     close_till(event_log, "alice", Decimal("0.00"))
 

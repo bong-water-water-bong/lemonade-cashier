@@ -22,8 +22,9 @@ profile for ``Alice`` and ``alice`` collapses into one entry.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Iterable
+from typing import cast
 
 from ..audit.eventlog import Event
 
@@ -105,9 +106,13 @@ def profiles_from_events(events: Iterable[Event]) -> dict[str, AttendantProfile]
         counter.values[field_name] = counter.values.get(field_name, 0) + delta
 
     for event in events_list:
-        payload = event.payload or {}
+        payload = cast("dict[str, object]", event.payload or {})
+        attendant = payload.get("attendant")
+        actor_id = payload.get("actor_id")
+        attendant_id = attendant if isinstance(attendant, str) else None
+        actor_id_str = actor_id if isinstance(actor_id, str) else None
         if event.type == "transaction.open":
-            bump(payload.get("attendant"), "total_transactions")
+            bump(attendant_id, "total_transactions")
         elif event.type == "cart.remove_last" or event.type == "cart.remove_sku":
             # We don't know which attendant from the event itself; tag
             # everything in the same transaction window. The supervisor
@@ -124,13 +129,13 @@ def profiles_from_events(events: Iterable[Event]) -> dict[str, AttendantProfile]
             if payload.get("source") == "model_proposed":
                 bump(_last_attendant(counters), "model_proposed_adds")
         elif event.type == "cit.drop":
-            bump(payload.get("attendant"), "cit_drops")
+            bump(attendant_id, "cit_drops")
         elif event.type == "cit.drop.witnessed":
-            bump(payload.get("attendant"), "cit_drops_witnessed")
+            bump(attendant_id, "cit_drops_witnessed")
         elif event.type == "cit.pickup":
-            bump(payload.get("attendant"), "cit_pickups")
+            bump(attendant_id, "cit_pickups")
         elif event.type == "cit.bag.sealed":
-            bump(payload.get("attendant"), "bags_sealed")
+            bump(attendant_id, "bags_sealed")
         elif event.type == "cit.bag.discrepancy":
             # The discrepancy isn't tied to a specific attendant on its
             # own payload — credit it to whoever sealed the bag.
@@ -138,7 +143,7 @@ def profiles_from_events(events: Iterable[Event]) -> dict[str, AttendantProfile]
             sealer = bag_sealers.get(bag_id) if isinstance(bag_id, str) else None
             bump(sealer, "bag_discrepancies")
         elif event.type == "safety.pin.failed":
-            bump(payload.get("actor_id"), "pin_failures")
+            bump(actor_id_str, "pin_failures")
 
     return {actor: c.freeze() for actor, c in counters.items()}
 

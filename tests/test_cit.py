@@ -31,9 +31,7 @@ def test_drop_above_threshold_requires_witness(event_log):
 
 def test_drop_with_witness_succeeds(event_log):
     open_till(event_log, "alice", Decimal("500.00"))
-    event = record_drop(
-        event_log, "alice", DEFAULT_TWO_PERSON_THRESHOLD, witness_id="bob"
-    )
+    event = record_drop(event_log, "alice", DEFAULT_TWO_PERSON_THRESHOLD, witness_id="bob")
     assert event.type == "cit.drop.witnessed"
     state = till_state_from_events(event_log.read_all())
     assert state.cash_on_hand == Decimal("300.0000")

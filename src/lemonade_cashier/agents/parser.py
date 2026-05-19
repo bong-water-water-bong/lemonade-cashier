@@ -84,6 +84,7 @@ def parse_event(raw_text: str) -> ParsedEvent:
         amount = parts[1].lstrip("$").strip() if len(parts) == 2 else ""
         if amount:
             from decimal import Decimal, InvalidOperation
+
             try:
                 Decimal(amount)
                 return ParsedEvent(action="tender", amount=amount)
@@ -121,9 +122,7 @@ def parse_event(raw_text: str) -> ParsedEvent:
                 amount = rest[0].lstrip("$")
                 return ParsedEvent(action="bag.seal", amount=amount)
             if verb == "handoff" and len(rest) == 2:
-                return ParsedEvent(
-                    action="bag.handoff", bag_id=rest[0], carrier_id=rest[1]
-                )
+                return ParsedEvent(action="bag.handoff", bag_id=rest[0], carrier_id=rest[1])
             if verb == "receive" and len(rest) == 3:
                 return ParsedEvent(
                     action="bag.receive",

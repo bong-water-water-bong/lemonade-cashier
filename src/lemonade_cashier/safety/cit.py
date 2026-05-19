@@ -39,9 +39,7 @@ class TillError(RuntimeError):
     """Raised when a CIT operation violates a precondition."""
 
 
-def open_till(
-    log: EventLog, attendant_id: str, starting_count: Decimal
-) -> Event:
+def open_till(log: EventLog, attendant_id: str, starting_count: Decimal) -> Event:
     return log.append(
         "cit.till.open",
         {
@@ -51,9 +49,7 @@ def open_till(
     )
 
 
-def close_till(
-    log: EventLog, attendant_id: str, ending_count: Decimal
-) -> Event:
+def close_till(log: EventLog, attendant_id: str, ending_count: Decimal) -> Event:
     return log.append(
         "cit.till.close",
         {
@@ -105,9 +101,7 @@ def record_drop(
     return log.append(event_type, payload)
 
 
-def record_pickup(
-    log: EventLog, attendant_id: str, amount: Decimal
-) -> Event:
+def record_pickup(log: EventLog, attendant_id: str, amount: Decimal) -> Event:
     amt = to_money(amount)
     if amt <= to_money("0.00"):
         raise TillError(
@@ -131,14 +125,14 @@ def till_state_from_events(events: list[Event]) -> TillState:
     pickups = 0
     for event in events:
         if event.type == "cit.till.open":
-            cash = to_money(event.payload["starting_count"])  # type: ignore[arg-type]
+            cash = to_money(event.payload["starting_count"])
         elif event.type == "cit.till.close":
             cash = to_money("0.00")
         elif event.type in ("cit.drop", "cit.drop.witnessed"):
-            cash -= to_money(event.payload["amount"])  # type: ignore[arg-type]
+            cash -= to_money(event.payload["amount"])
             drops += 1
         elif event.type == "cit.pickup":
-            cash += to_money(event.payload["amount"])  # type: ignore[arg-type]
+            cash += to_money(event.payload["amount"])
             pickups += 1
     return TillState(cash_on_hand=cash, drops_count=drops, pickups_count=pickups)
 

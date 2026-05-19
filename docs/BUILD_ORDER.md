@@ -157,5 +157,5 @@ A layer is promoted only when:
 1. It writes events that round-trip through `replay()`.
 2. It has a "model unreachable" test that does not crash or hang.
 3. It has a documented confidence/permission model in
-   [`AGENTS.md`](../AGENTS.md).
+   [AGENTS.md](https://github.com/bong-water-water-bong/lemonade-cashier/blob/main/AGENTS.md).
 4. It does not require a new runtime dependency in `core/`.

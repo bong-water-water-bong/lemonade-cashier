@@ -35,7 +35,6 @@ from ..safety.report import build as build_report
 from . import proposals, registry
 from .lemonade_client import LemonadeConfig, chat_completions
 
-
 SYSTEM_PROMPT = (
     "You are the read-only assistant for a cashier. Answer ONLY using "
     "the JSON state provided. Do not invent SKUs, prices, attendant "
@@ -91,9 +90,7 @@ def ask(
             {"role": "system", "content": SYSTEM_PROMPT},
             {
                 "role": "user",
-                "content": json.dumps(
-                    {"question": cleaned, "state": safe_state}, default=str
-                ),
+                "content": json.dumps({"question": cleaned, "state": safe_state}, default=str),
             },
         ],
         config=config,
@@ -166,12 +163,10 @@ def _trim_for_model(state: dict[str, Any]) -> dict[str, Any]:
         cleaned: dict[str, Any] = {}
         for actor, profile in attendants.items():
             if isinstance(profile, dict):
-                clean_profile = {
-                    k: v for k, v in profile.items() if k != "pin_failures"
-                }
+                clean_profile = {k: v for k, v in profile.items() if k != "pin_failures"}
                 cleaned[actor] = clean_profile
         trimmed["attendants"] = cleaned
     return trimmed
 
 
-__all__ = ["QAAnswer", "SYSTEM_PROMPT", "ask"]
+__all__ = ["SYSTEM_PROMPT", "QAAnswer", "ask"]

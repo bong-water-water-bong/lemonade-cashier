@@ -14,7 +14,7 @@ def test_receipt_text_contains_totals(seeded_db, event_log, tmp_path):
     sup = Supervisor(event_log, SupervisorConfig(tax_rate=to_money("0.00")))
     sup.handle_text("apple")
     sup.handle_text("milk")
-    state = sup._state()  # noqa: SLF001
+    state = sup._state()
 
     receipt = render_state(state, receipt_id="r-test")
     assert "Subtotal" in receipt.text

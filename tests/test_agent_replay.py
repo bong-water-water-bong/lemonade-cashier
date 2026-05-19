@@ -45,12 +45,12 @@ def test_confirmation_flow_preserves_agent_provenance(seeded_db, event_log, monk
     confirmation round-trip was laundering agent provenance through
     the canonical product name."""
 
+    import lemonade_cashier.agents.supervisor as sup_mod
     from lemonade_cashier.agents.lemonade_client import (
         LemonadeConfig,
         NormalizedPhrase,
     )
     from lemonade_cashier.agents.supervisor import Supervisor, SupervisorConfig
-    import lemonade_cashier.agents.supervisor as sup_mod
 
     # Stub the Lemonade normalizer to return a candidate that resolves
     # to a low-confidence match via substring (not exact). The cleanest
@@ -114,9 +114,7 @@ def test_supervisor_unreachable_writes_proposal(seeded_db, event_log):
     sup = Supervisor(
         event_log,
         SupervisorConfig(
-            lemonade=LemonadeConfig(
-                url="http://127.0.0.1:1", timeout_sec=timeout_sec, enabled=True
-            )
+            lemonade=LemonadeConfig(url="http://127.0.0.1:1", timeout_sec=timeout_sec, enabled=True)
         ),
     )
     start = time.monotonic()

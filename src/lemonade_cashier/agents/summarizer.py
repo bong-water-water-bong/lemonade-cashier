@@ -24,7 +24,6 @@ from ..safety.report import build as build_report
 from . import proposals, registry
 from .lemonade_client import LemonadeConfig, chat_completions
 
-
 SYSTEM_PROMPT = (
     "You are the end-of-shift summarizer for a cashier. Produce a "
     "single short paragraph (3-5 sentences) of plain English. Mention "

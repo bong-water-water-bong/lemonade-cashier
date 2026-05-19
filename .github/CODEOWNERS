@@ -1,0 +1,25 @@
+# Code Owners
+#
+# These owners are automatically requested for review on every PR.
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-security/customizing-your-repository/about-code-owners
+
+# Default owner for everything.
+*                                       @bong-water-water-bong
+
+# Financial core is load-bearing — owner review is non-negotiable.
+/src/lemonade_cashier/core/             @bong-water-water-bong
+/src/lemonade_cashier/audit/            @bong-water-water-bong
+/src/lemonade_cashier/safety/           @bong-water-water-bong
+
+# Tests for the above (don't drop or weaken these).
+/tests/test_money.py                    @bong-water-water-bong
+/tests/test_replay.py                   @bong-water-water-bong
+/tests/test_eventlog.py                 @bong-water-water-bong
+/tests/test_cit.py                      @bong-water-water-bong
+/tests/test_tamper.py                   @bong-water-water-bong
+
+# CI/CD and repo policy.
+/.github/                               @bong-water-water-bong
+/CLAUDE.md                              @bong-water-water-bong
+/CONTRIBUTING.md                        @bong-water-water-bong
+/SECURITY.md                            @bong-water-water-bong

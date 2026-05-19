@@ -1,7 +1,7 @@
 # Architecture
 
 This document explains *why* the code is organized the way it is.
-For *what to do*, see [`AGENTS.md`](../AGENTS.md). For *what to build
+For *what to do*, see [AGENTS.md](https://github.com/bong-water-water-bong/lemonade-cashier/blob/main/AGENTS.md). For *what to build
 next*, see [`BUILD_ORDER.md`](BUILD_ORDER.md).
 
 ## Layered model

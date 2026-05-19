@@ -69,12 +69,22 @@ def test_confidence_clamped_to_unit_interval(event_log):
     """Out-of-range confidence is clamped, not rejected (defensive)."""
 
     e1 = proposals.write(
-        event_log, agent="lemonade", kind="normalize",
-        input={}, output={}, confidence=1.5, decision="accepted",
+        event_log,
+        agent="lemonade",
+        kind="normalize",
+        input={},
+        output={},
+        confidence=1.5,
+        decision="accepted",
     )
     e2 = proposals.write(
-        event_log, agent="lemonade", kind="normalize",
-        input={}, output={}, confidence=-0.5, decision="rejected",
+        event_log,
+        agent="lemonade",
+        kind="normalize",
+        input={},
+        output={},
+        confidence=-0.5,
+        decision="rejected",
     )
     assert proposals.Proposal.from_event(e1).confidence == 1.0
     assert proposals.Proposal.from_event(e2).confidence == 0.0
@@ -142,13 +152,27 @@ def test_proposals_from_events_filters_other_types(event_log):
 
     event_log.append("transaction.open", {"attendant": "alice"})
     proposals.write(
-        event_log, agent="lemonade", kind="normalize",
-        input={"phrase": "x"}, output=None, confidence=0.1, decision="rejected",
+        event_log,
+        agent="lemonade",
+        kind="normalize",
+        input={"phrase": "x"},
+        output=None,
+        confidence=0.1,
+        decision="rejected",
     )
-    event_log.append("cart.add", {"sku": "X", "name": "x", "unit_price": "1.00",
-                                   "taxable": True, "quantity": 1,
-                                   "actor": "attendant", "source": "typed",
-                                   "confidence": 1.0})
+    event_log.append(
+        "cart.add",
+        {
+            "sku": "X",
+            "name": "x",
+            "unit_price": "1.00",
+            "taxable": True,
+            "quantity": 1,
+            "actor": "attendant",
+            "source": "typed",
+            "confidence": 1.0,
+        },
+    )
 
     got = proposals.proposals_from_events(event_log.read_all())
     assert len(got) == 1

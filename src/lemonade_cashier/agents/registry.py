@@ -25,15 +25,14 @@ agent modules call before writing any ``agent.proposal`` event.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import FrozenSet
 
 
 @dataclass(frozen=True)
 class Capability:
     """One agent's permitted proposal-kinds and actor-roles."""
 
-    kinds: FrozenSet[str]
-    actors: FrozenSet[str]
+    kinds: frozenset[str]
+    actors: frozenset[str]
 
 
 # The deny-list is intentionally implicit: "if it's not in this dict, the
@@ -77,9 +76,7 @@ def assert_can_emit(agent: str, kind: str) -> None:
 
     cap = REGISTRY.get(agent)
     if cap is None:
-        raise CapabilityError(
-            f"unknown agent {agent!r}; add it to agents.registry.REGISTRY first"
-        )
+        raise CapabilityError(f"unknown agent {agent!r}; add it to agents.registry.REGISTRY first")
     if kind not in cap.kinds:
         raise CapabilityError(
             f"agent {agent!r} is not permitted to emit kind={kind!r}; "
@@ -101,9 +98,9 @@ def assert_actor_allowed(agent: str, actor: str) -> None:
 
 
 __all__ = [
+    "REGISTRY",
     "Capability",
     "CapabilityError",
-    "REGISTRY",
     "assert_actor_allowed",
     "assert_can_emit",
 ]

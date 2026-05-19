@@ -76,9 +76,7 @@ def test_no_float_money_in_core():
     ]
     offenses: list[str] = []
     for path in core_dir.rglob("*.py"):
-        for line_number, line in enumerate(
-            path.read_text(encoding="utf-8").splitlines(), start=1
-        ):
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
             if "# allow-float" in line:
                 continue
             for pattern in forbidden_patterns:

@@ -12,25 +12,23 @@ from __future__ import annotations
 import json
 import logging
 import os
-from decimal import Decimal
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
-
-from .agents.lemonade_client import LemonadeConfig
 from .agents.flm_client import FLMConfig
-from .agents.supervisor import Supervisor, SupervisorConfig
+from .agents.lemonade_client import LemonadeConfig
+from .agents.supervisor import Supervisor, SupervisorConfig, SupervisorOutcome
 from .audit.eventlog import EventLog
-from .audit.receipts import render, save
+from .audit.receipts import Receipt, save
 from .core.inventory import initialize_database
 from .core.money import to_money
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_EVENT_LOG = "data/events/cashier.jsonl"
 DEFAULT_RECEIPT_DIR = "data/receipts"
 
 BANNER = (
-    "Lemonade Cashier — local, offline, deterministic. "
-    "type 'help' for commands, 'quit' to exit."
+    "Lemonade Cashier — local, offline, deterministic. type 'help' for commands, 'quit' to exit."
 )
 
 
@@ -86,9 +84,7 @@ def main() -> None:  # pragma: no cover — interactive loop, exercised by smoke
         if outcome.needs_confirmation and outcome.candidate_match is not None:
             match = outcome.candidate_match
             answer = (
-                input(
-                    f"add {match.name} at ${match.price} ({match.confidence})? y/n > "
-                )
+                input(f"add {match.name} at ${match.price} ({match.confidence})? y/n > ")
                 .strip()
                 .lower()
             )
@@ -122,7 +118,7 @@ def main() -> None:  # pragma: no cover — interactive loop, exercised by smoke
             break
 
 
-def render_state_safe(state: dict[str, object]):
+def render_state_safe(state: dict[str, object]) -> Receipt:
     """Thin wrapper around :func:`audit.receipts.render_state`."""
 
     from .audit.receipts import render_state
@@ -130,7 +126,7 @@ def render_state_safe(state: dict[str, object]):
     return render_state(state)
 
 
-def _print_outcome(outcome) -> None:
+def _print_outcome(outcome: SupervisorOutcome) -> None:
     print(outcome.message)
     if outcome.tender_breakdown:
         print(json.dumps(outcome.tender_breakdown, indent=2))

@@ -16,13 +16,17 @@ can never stall the cashier. The default mirrors
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeout
 from dataclasses import dataclass
+from typing import Any
 
 try:  # pragma: no cover — exercised only when GAIA is installed
-    import gaia  # type: ignore[import-not-found]
+    import gaia as _gaia  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover — exercised by the default test env
-    gaia = None  # type: ignore[assignment]
+    gaia: Any | None = None
+else:  # pragma: no cover — exercised only when GAIA is installed
+    gaia = _gaia
 
 
 DEFAULT_TIMEOUT_SEC = 2.0
@@ -94,7 +98,7 @@ class GAIABridge:
             return None
 
         def _call() -> str:
-            client = gaia.Client()  # type: ignore[attr-defined]
+            client = gaia.Client()
             reply = client.chat(
                 prompt=prompt,
                 context={"cart": cart_state},

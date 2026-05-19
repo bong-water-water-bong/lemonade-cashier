@@ -69,7 +69,7 @@ def test_supervisor_clear_resets_cart(seeded_db, event_log):
     sup.handle_text("apple")
     sup.handle_text("separate order")
     sup.handle_text("milk")
-    skus = [item["sku"] for item in sup._state()["items"]]  # noqa: SLF001
+    skus = [item["sku"] for item in sup._state()["items"]]
     assert skus == ["MLK001"]
 
 
@@ -168,9 +168,7 @@ def test_remove_named_above_threshold_demands_pin(seeded_db, event_log, tmp_path
     pins.set_pin("supervisor", "1234", path=pin_store)
     sup = Supervisor(
         event_log,
-        SupervisorConfig(
-            attendant_id="alice", supervisor_id="supervisor", pin_store=pin_store
-        ),
+        SupervisorConfig(attendant_id="alice", supervisor_id="supervisor", pin_store=pin_store),
     )
     sup.handle_text("coffee")
     sup.handle_text("two of those")
@@ -193,9 +191,7 @@ def test_set_quantity_reduction_above_threshold_demands_pin(seeded_db, event_log
     pins.set_pin("supervisor", "1234", path=pin_store)
     sup = Supervisor(
         event_log,
-        SupervisorConfig(
-            attendant_id="alice", supervisor_id="supervisor", pin_store=pin_store
-        ),
+        SupervisorConfig(attendant_id="alice", supervisor_id="supervisor", pin_store=pin_store),
     )
     sup.handle_text("coffee")
     sup.handle_text("12 of those")
@@ -208,16 +204,14 @@ def test_set_quantity_reduction_above_threshold_demands_pin(seeded_db, event_log
     out = sup.handle_text("2 of those", pin="1234")
     assert not out.needs_pin
     assert "set quantity to 2" in out.message
-    coffee_line = next(
-        item for item in out.state["items"] if item["sku"] == "COF001"
-    )
+    coffee_line = next(item for item in out.state["items"] if item["sku"] == "COF001")
     assert coffee_line["quantity"] == 2
 
 
 def test_clear_cart_above_threshold_demands_pin(seeded_db, event_log, tmp_path):
     """`separate order` on a cart whose subtotal exceeds the void
-    threshold wipes everything — must demand a PIN. The test cart is
-    $17.98 (coffee × 2) — over the default $10 void threshold.
+    threshold wipes everything - must demand a PIN. The test cart is
+    $17.98 (coffee x 2) - over the default $10 void threshold.
 
     This was the most dangerous bypass before the gate extraction: the
     operator could erase an arbitrarily large cart with `separate
@@ -229,9 +223,7 @@ def test_clear_cart_above_threshold_demands_pin(seeded_db, event_log, tmp_path):
     pins.set_pin("supervisor", "1234", path=pin_store)
     sup = Supervisor(
         event_log,
-        SupervisorConfig(
-            attendant_id="alice", supervisor_id="supervisor", pin_store=pin_store
-        ),
+        SupervisorConfig(attendant_id="alice", supervisor_id="supervisor", pin_store=pin_store),
     )
     sup.handle_text("coffee")
     sup.handle_text("two of those")  # $17.98 — over $10 threshold

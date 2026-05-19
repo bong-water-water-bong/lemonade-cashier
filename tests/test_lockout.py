@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -15,8 +15,7 @@ from lemonade_cashier.safety.lockout import (
 )
 from lemonade_cashier.safety.pins import set_pin
 
-
-T0 = datetime(2026, 5, 18, 12, 0, 0, tzinfo=timezone.utc)
+T0 = datetime(2026, 5, 18, 12, 0, 0, tzinfo=UTC)
 
 
 @pytest.fixture()
@@ -44,9 +43,7 @@ def test_single_failure_no_lock(event_log):
 
 def test_threshold_failures_lock(event_log):
     for i in range(DEFAULT_FAILURE_THRESHOLD):
-        record_pin_attempt(
-            event_log, "alice", success=False, now=T0 + timedelta(seconds=i)
-        )
+        record_pin_attempt(event_log, "alice", success=False, now=T0 + timedelta(seconds=i))
     state = state_for(event_log, "alice", now=T0 + timedelta(seconds=10))
     assert state.is_locked
     assert state.locked_until is not None
@@ -54,20 +51,14 @@ def test_threshold_failures_lock(event_log):
 
 def test_locked_attempt_raises(event_log):
     for i in range(DEFAULT_FAILURE_THRESHOLD):
-        record_pin_attempt(
-            event_log, "alice", success=False, now=T0 + timedelta(seconds=i)
-        )
+        record_pin_attempt(event_log, "alice", success=False, now=T0 + timedelta(seconds=i))
     with pytest.raises(LockoutError):
-        record_pin_attempt(
-            event_log, "alice", success=False, now=T0 + timedelta(seconds=10)
-        )
+        record_pin_attempt(event_log, "alice", success=False, now=T0 + timedelta(seconds=10))
 
 
 def test_lockout_expires_naturally(event_log):
     for i in range(DEFAULT_FAILURE_THRESHOLD):
-        record_pin_attempt(
-            event_log, "alice", success=False, now=T0 + timedelta(seconds=i)
-        )
+        record_pin_attempt(event_log, "alice", success=False, now=T0 + timedelta(seconds=i))
     # Default lockout is 5 minutes — check just after that.
     far_future = T0 + timedelta(minutes=10)
     state = state_for(event_log, "alice", now=far_future)
@@ -86,7 +77,10 @@ def test_success_clears_failure_counter(event_log):
 def test_lift_lockout_requires_distinct_actor(event_log, manager_pin):
     with pytest.raises(LockoutError, match="cannot lift their own"):
         lift_lockout(
-            event_log, "alice", by_actor="alice", by_pin="0000",
+            event_log,
+            "alice",
+            by_actor="alice",
+            by_pin="0000",
             pin_store_path=manager_pin,
         )
 
@@ -98,18 +92,22 @@ def test_lift_lockout_requires_valid_pin(event_log, manager_pin):
 
     with pytest.raises(LockoutError, match="did not verify"):
         lift_lockout(
-            event_log, "alice", by_actor="manager", by_pin="WRONG",
+            event_log,
+            "alice",
+            by_actor="manager",
+            by_pin="WRONG",
             pin_store_path=manager_pin,
         )
 
 
 def test_lift_lockout_clears_state(event_log, manager_pin):
     for i in range(DEFAULT_FAILURE_THRESHOLD):
-        record_pin_attempt(
-            event_log, "alice", success=False, now=T0 + timedelta(seconds=i)
-        )
+        record_pin_attempt(event_log, "alice", success=False, now=T0 + timedelta(seconds=i))
     lift_lockout(
-        event_log, "alice", by_actor="manager", by_pin="0000",
+        event_log,
+        "alice",
+        by_actor="manager",
+        by_pin="0000",
         now=T0 + timedelta(seconds=10),
         pin_store_path=manager_pin,
     )
@@ -122,9 +120,7 @@ def test_failures_outside_window_dont_count(event_log):
     # Two failures more than 60s apart — neither should count toward
     # the threshold from the perspective of "now".
     record_pin_attempt(event_log, "alice", success=False, now=T0)
-    record_pin_attempt(
-        event_log, "alice", success=False, now=T0 + timedelta(minutes=5)
-    )
+    record_pin_attempt(event_log, "alice", success=False, now=T0 + timedelta(minutes=5))
     state = state_for(event_log, "alice", now=T0 + timedelta(minutes=5, seconds=1))
     assert state.recent_failures == 1  # only the most recent is in the 60s window
     assert not state.is_locked

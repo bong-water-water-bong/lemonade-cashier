@@ -108,8 +108,7 @@ def all_products(db_path: Path = DEFAULT_DB_PATH) -> list[Product]:
     initialize_database(db_path)
     with sqlite3.connect(db_path) as connection:
         rows = connection.execute(
-            "SELECT sku, name, price, taxable, aliases FROM products "
-            "ORDER BY sku"
+            "SELECT sku, name, price, taxable, aliases FROM products ORDER BY sku"
         ).fetchall()
     return [_row_to_product(row) for row in rows]
 
@@ -166,9 +165,7 @@ def _score_product(query: str, product: Product) -> ProductMatch | None:
 
     fuzzy_score = SequenceMatcher(None, query, name).ratio()
     for alias in aliases:
-        fuzzy_score = max(
-            fuzzy_score, SequenceMatcher(None, query, alias).ratio()
-        )
+        fuzzy_score = max(fuzzy_score, SequenceMatcher(None, query, alias).ratio())
 
     # Whichever scorer wins also names the provenance. Without this the
     # match could be reported as "substring" when the fuzzy score was
@@ -230,9 +227,7 @@ def main() -> None:  # pragma: no cover — CLI helper, exercised by Makefile
                 f"{'tax' if product.taxable else '   '}  {product.name}"
             )
     else:
-        print(
-            "usage: python -m lemonade_cashier.core.inventory [--seed | --list]"
-        )
+        print("usage: python -m lemonade_cashier.core.inventory [--seed | --list]")
 
 
 if __name__ == "__main__":  # pragma: no cover

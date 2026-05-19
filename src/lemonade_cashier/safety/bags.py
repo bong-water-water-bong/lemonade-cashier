@@ -40,6 +40,9 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Literal
 
+from ..audit.eventlog import Event, EventLog
+from ..core.money import ZERO, money_str, to_money
+
 # bag_id / carrier_id / seal_id are persisted into the JSONL event log
 # and rendered into receipt text. We restrict the character set to keep
 # the log greppable, prevent newline-injection into adjacent JSON
@@ -52,13 +55,9 @@ def _validate_identifier(value: object, *, field_name: str) -> str:
         raise BagError(f"{field_name} must be a string; got {type(value).__name__}")
     cleaned = value.strip()
     if not _ID_PATTERN.fullmatch(cleaned):
-        raise BagError(
-            f"{field_name} must match {_ID_PATTERN.pattern}; got {value!r}"
-        )
+        raise BagError(f"{field_name} must match {_ID_PATTERN.pattern}; got {value!r}")
     return cleaned
 
-from ..audit.eventlog import Event, EventLog
-from ..core.money import ZERO, money_str, to_money
 
 # Strict state machine. The keys are the *current* status; the values
 # are the set of statuses the bag is allowed to transition into.
@@ -71,9 +70,7 @@ _ALLOWED_TRANSITIONS: dict[str, frozenset[str]] = {
     "discrepancy": frozenset(),  # terminal — requires human reconciliation
 }
 
-BagStatus = Literal[
-    "absent", "sealed", "handoff", "received", "reconciled", "discrepancy"
-]
+BagStatus = Literal["absent", "sealed", "handoff", "received", "reconciled", "discrepancy"]
 
 
 class BagError(RuntimeError):
@@ -131,13 +128,9 @@ class Manifest:
                     )
                 )
             except KeyError as exc:
-                raise BagError(
-                    f"manifest entry {index} missing required key {exc}"
-                ) from exc
+                raise BagError(f"manifest entry {index} missing required key {exc}") from exc
             except (TypeError, ValueError) as exc:
-                raise BagError(
-                    f"manifest entry {index} has invalid value: {exc}"
-                ) from exc
+                raise BagError(f"manifest entry {index} has invalid value: {exc}") from exc
         return cls(entries=tuple(entries))
 
 
@@ -223,9 +216,7 @@ def seal_bag(
 
     attendant_canon = _canonicalize_actor_id(attendant_id, field_name="attendant_id")
     if manifest.total <= ZERO:
-        raise BagError(
-            f"manifest total must be > 0; got ${money_str(manifest.total)}"
-        )
+        raise BagError(f"manifest total must be > 0; got ${money_str(manifest.total)}")
     final_bag_id = bag_id or f"bag-{uuid.uuid4().hex[:12]}"
     final_seal_id = seal_id or f"seal-{uuid.uuid4().hex[:12]}"
     final_bag_id = _validate_identifier(final_bag_id, field_name="bag_id")
@@ -374,9 +365,7 @@ def _current_status(log: EventLog, bag_id: str) -> BagStatus:
 def _require_transition(current: BagStatus, target: BagStatus, bag_id: str) -> None:
     allowed = _ALLOWED_TRANSITIONS.get(current, frozenset())
     if target not in allowed:
-        raise BagError(
-            f"bag {bag_id!r}: illegal transition {current!r} -> {target!r}"
-        )
+        raise BagError(f"bag {bag_id!r}: illegal transition {current!r} -> {target!r}")
 
 
 def _bags_from_events_impl(events: list[Event]) -> dict[str, BagSnapshot]:
@@ -384,7 +373,7 @@ def _bags_from_events_impl(events: list[Event]) -> dict[str, BagSnapshot]:
     for event in events:
         if not event.type.startswith("cit.bag."):
             continue
-        bag_id = event.payload.get("bag_id")  # type: ignore[attr-defined]
+        bag_id = event.payload.get("bag_id")
         if not isinstance(bag_id, str):
             continue
         bag = bags.setdefault(bag_id, _MutableBag(bag_id=bag_id))

@@ -27,9 +27,9 @@ import json
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
-from ..core.cart import Cart, CartLine
+from ..core.cart import Actor, Cart, CartLine, Source
 from ..core.money import money_str, to_money
 from ..core.totals import compute_totals
 from .eventlog import Event, EventLog
@@ -69,24 +69,23 @@ class ReplayState:
         # Aggregate bag snapshots from the cit.bag.* subset. Lives next
         # to `cit` so consumers can render in-flight bags without
         # walking the event list themselves.
-        if any(e.get("type", "").startswith("cit.bag.") for e in self.cit_events):
+        if any(str(e.get("type", "")).startswith("cit.bag.") for e in self.cit_events):
             from ..safety.bags import bags_from_events
             from .eventlog import Event
 
             synthetic = [
                 Event(
-                    seq=int(e["seq"]),
+                    seq=int(cast("int | str", e["seq"])),
                     ts=str(e.get("ts", "")),
                     type=str(e["type"]),
-                    payload=e["payload"],  # type: ignore[arg-type]
+                    payload=cast("dict[str, object]", e["payload"]),
                     prev="",
                     hash="",
                 )
                 for e in self.cit_events
             ]
             state["bags"] = {
-                bag_id: snap.to_state()
-                for bag_id, snap in bags_from_events(synthetic).items()
+                bag_id: snap.to_state() for bag_id, snap in bags_from_events(synthetic).items()
             }
         if self.unknown_events:
             state["unknown_events"] = list(self.unknown_events)
@@ -163,7 +162,7 @@ def _on_open(state: ReplayState, event: Event) -> None:
     state.opened_at = event.ts
     rate = event.payload.get("tax_rate")
     if rate is not None:
-        state.tax_rate = to_money(rate)  # type: ignore[arg-type]
+        state.tax_rate = to_money(rate)
 
 
 def _on_close(state: ReplayState, event: Event) -> None:
@@ -175,12 +174,12 @@ def _on_cart_add(state: ReplayState, event: Event) -> None:
     line = CartLine(
         sku=str(payload["sku"]),
         name=str(payload["name"]),
-        unit_price=to_money(payload["unit_price"]),  # type: ignore[arg-type]
+        unit_price=to_money(payload["unit_price"]),
         taxable=bool(payload["taxable"]),
-        quantity=int(payload.get("quantity", 1)),  # type: ignore[arg-type]
-        actor=payload.get("actor", "attendant"),  # type: ignore[arg-type]
-        source=payload.get("source", "typed"),  # type: ignore[arg-type]
-        confidence=float(payload.get("confidence", 1.0)),  # type: ignore[arg-type]
+        quantity=int(cast("int | str", payload.get("quantity", 1))),
+        actor=cast("Actor", payload.get("actor", "attendant")),
+        source=cast("Source", payload.get("source", "typed")),
+        confidence=float(cast("int | float | str", payload.get("confidence", 1.0))),
     )
     state.cart.add(line)
 
@@ -196,7 +195,7 @@ def _on_remove_sku(state: ReplayState, event: Event) -> None:
 def _on_set_quantity(state: ReplayState, event: Event) -> None:
     state.cart.set_quantity(
         str(event.payload["sku"]),
-        int(event.payload["quantity"]),  # type: ignore[arg-type]
+        int(cast("int | str", event.payload["quantity"])),
     )
 
 
@@ -205,9 +204,9 @@ def _on_clear(state: ReplayState, _event: Event) -> None:
 
 
 def _on_tender(state: ReplayState, event: Event) -> None:
-    state.tender = to_money(event.payload["tender"])  # type: ignore[arg-type]
+    state.tender = to_money(event.payload["tender"])
     if "change" in event.payload:
-        state.change = to_money(event.payload["change"])  # type: ignore[arg-type]
+        state.change = to_money(event.payload["change"])
 
 
 _HANDLERS = {

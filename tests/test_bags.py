@@ -165,9 +165,7 @@ def test_handoff_rejects_empty_carrier(event_log):
 
 def test_handoff_requires_sealed_bag(event_log):
     with pytest.raises(BagError, match="illegal transition"):
-        handoff_bag(
-            event_log, "no-such-bag", attendant_id="alice", carrier_id="bob"
-        )
+        handoff_bag(event_log, "no-such-bag", attendant_id="alice", carrier_id="bob")
 
 
 def test_handoff_emits_two_party_event(event_log):

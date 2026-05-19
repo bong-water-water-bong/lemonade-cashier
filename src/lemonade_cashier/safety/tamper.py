@@ -30,12 +30,11 @@ log or just surface it in the EOS report.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from typing import Iterable
+from datetime import UTC, datetime, timedelta
 
 from ..audit.eventlog import Event, EventLog
-
 
 CLOCK_SKEW_TOLERANCE = timedelta(minutes=10)
 LONG_QUIET_TOLERANCE = timedelta(hours=2)
@@ -70,7 +69,7 @@ def scan(
     """
 
     events = log.read_all()
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     findings: list[TamperFinding] = []
     findings.extend(_clock_skew_findings(events, now=now, tolerance=clock_skew_tolerance))
     findings.extend(_long_quiet_findings(events, now=now, tolerance=long_quiet_tolerance))
@@ -86,7 +85,7 @@ def emit(log: EventLog, finding: TamperFinding, *, now: datetime | None = None) 
     not write to the log.
     """
 
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     return log.append(
         "safety.tamper.suspected",
         {
@@ -139,9 +138,7 @@ def _long_quiet_findings(
             TamperFinding(
                 kind="long_quiet_period",
                 severity="info",
-                message=(
-                    f"no events for {now - last} since last activity at {last!s}"
-                ),
+                message=(f"no events for {now - last} since last activity at {last!s}"),
                 detail={"last_ts": last.isoformat(), "now": now.isoformat()},
             )
         )

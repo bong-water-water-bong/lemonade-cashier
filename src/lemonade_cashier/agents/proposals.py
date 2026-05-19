@@ -84,26 +84,25 @@ class Proposal:
         }
 
     @classmethod
-    def from_event(cls, event: Event) -> "Proposal":
+    def from_event(cls, event: Event) -> Proposal:
         if event.type != EVENT_TYPE:
             raise ValueError(f"expected {EVENT_TYPE} event, got {event.type}")
         p = event.payload or {}
         kind = str(p.get("kind", ""))
         decision = str(p.get("decision", ""))
         if kind not in _KINDS:
-            raise ValueError(
-                f"proposal kind {kind!r} not in {sorted(_KINDS)}"
-            )
+            raise ValueError(f"proposal kind {kind!r} not in {sorted(_KINDS)}")
         if decision not in _DECISIONS:
-            raise ValueError(
-                f"proposal decision {decision!r} not in {sorted(_DECISIONS)}"
-            )
+            raise ValueError(f"proposal decision {decision!r} not in {sorted(_DECISIONS)}")
+        confidence = p.get("confidence", 0.0)
+        if not isinstance(confidence, (int, float, str)):
+            confidence = 0.0
         return cls(
             agent=str(p.get("agent", "?")),
             kind=kind,  # type: ignore[arg-type]
             input=p.get("input"),
             output=p.get("output"),
-            confidence=float(p.get("confidence", 0.0)),
+            confidence=float(confidence),
             decision=decision,  # type: ignore[arg-type]
         )
 
@@ -153,8 +152,8 @@ def proposals_from_events(events: list[Event]) -> list[Proposal]:
 
 
 __all__ = [
-    "Decision",
     "EVENT_TYPE",
+    "Decision",
     "Proposal",
     "ProposalKind",
     "proposals_from_events",

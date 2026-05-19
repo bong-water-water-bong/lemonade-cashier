@@ -24,8 +24,8 @@ from __future__ import annotations
 
 import json
 import tempfile
+from collections.abc import Iterable
 from dataclasses import dataclass
-from decimal import Decimal
 from pathlib import Path
 
 from ..agents.supervisor import Supervisor, SupervisorConfig
@@ -90,19 +90,23 @@ def _run_one(scenario: dict[str, object]) -> ScenarioResult:
                     passed=False,
                     detail=f"unexpected confirmation prompt for '{raw}'",
                 )
-        state = supervisor._state()  # noqa: SLF001 — internal-use ok in tests
+        state = supervisor._state()
     finally:
         log_path.unlink(missing_ok=True)
 
     return _compare(name, state, expected)
 
 
-def _compare(
-    name: str, state: dict[str, object], expected: dict[str, object]
-) -> ScenarioResult:
-    actual_skus = tuple(item["sku"] for item in state.get("items", []))  # type: ignore[index]
+def _compare(name: str, state: dict[str, object], expected: dict[str, object]) -> ScenarioResult:
+    raw_items = state.get("items", [])
+    items = raw_items if isinstance(raw_items, list) else []
+    actual_skus = tuple(item.get("sku") for item in items if isinstance(item, dict))
     want_skus = expected.get("item_skus")
-    if want_skus is not None and tuple(want_skus) != actual_skus:  # type: ignore[arg-type]
+    if (
+        want_skus is not None
+        and isinstance(want_skus, Iterable)
+        and tuple(want_skus) != actual_skus
+    ):
         return ScenarioResult(
             name=name,
             passed=False,
@@ -111,26 +115,22 @@ def _compare(
 
     want_subtotal = expected.get("subtotal")
     if want_subtotal is not None:
-        actual_subtotal = to_money(state.get("subtotal", "0.00"))  # type: ignore[arg-type]
-        if actual_subtotal != to_money(want_subtotal):  # type: ignore[arg-type]
+        actual_subtotal = to_money(state.get("subtotal", "0.00"))
+        if actual_subtotal != to_money(want_subtotal):
             return ScenarioResult(
                 name=name,
                 passed=False,
-                detail=(
-                    f"want subtotal={want_subtotal}, got={state.get('subtotal')}"
-                ),
+                detail=(f"want subtotal={want_subtotal}, got={state.get('subtotal')}"),
             )
 
     total_min = expected.get("total_min")
     if total_min is not None:
-        actual_total = to_money(state.get("total", "0.00"))  # type: ignore[arg-type]
-        if actual_total < to_money(total_min):  # type: ignore[arg-type]
+        actual_total = to_money(state.get("total", "0.00"))
+        if actual_total < to_money(total_min):
             return ScenarioResult(
                 name=name,
                 passed=False,
-                detail=(
-                    f"want total >= {total_min}, got {state.get('total')}"
-                ),
+                detail=(f"want total >= {total_min}, got {state.get('total')}"),
             )
 
     return ScenarioResult(name=name, passed=True, detail="ok")
@@ -150,9 +150,7 @@ def _read_scenarios(path: Path) -> list[dict[str, object]]:
 def main() -> None:  # pragma: no cover — CLI helper
     import sys
 
-    target = Path(
-        sys.argv[1] if len(sys.argv) > 1 else "data/scenarios.jsonl"
-    )
+    target = Path(sys.argv[1] if len(sys.argv) > 1 else "data/scenarios.jsonl")
     summary = run_scenarios(target)
     for result in summary.results:
         marker = "ok  " if result.passed else "FAIL"

@@ -16,9 +16,9 @@ because the only source of truth is the event log — same invariant as
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from typing import Iterable
+from datetime import UTC, datetime, timedelta
 
 from ..audit.eventlog import Event, EventLog
 from .pins import _validate_actor_id, verify_pin
@@ -46,9 +46,7 @@ class LockoutState:
             "actor_id": self.actor_id,
             "is_locked": self.is_locked,
             "locked_until": (
-                self.locked_until.isoformat(timespec="seconds")
-                if self.locked_until
-                else None
+                self.locked_until.isoformat(timespec="seconds") if self.locked_until else None
             ),
             "recent_failures": self.recent_failures,
         }
@@ -77,7 +75,7 @@ def record_pin_attempt(
     """
 
     actor_id = _validate_actor_id(actor_id)
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
 
     # Check current state first; refuse to log fresh attempts while locked.
     current = state_for(
@@ -88,9 +86,7 @@ def record_pin_attempt(
         lockout_duration=lockout_duration,
     )
     if current.is_locked:
-        raise LockoutError(
-            f"{actor_id!r} is locked out until {current.locked_until!s}"
-        )
+        raise LockoutError(f"{actor_id!r} is locked out until {current.locked_until!s}")
 
     event_type = "safety.pin.ok" if success else "safety.pin.failed"
     log.append(
@@ -104,7 +100,10 @@ def record_pin_attempt(
 
     # Re-check after the failed write to decide whether to lock.
     updated = state_for(
-        log, actor_id, now=now, lockout_duration=lockout_duration,
+        log,
+        actor_id,
+        now=now,
+        lockout_duration=lockout_duration,
         failure_window=failure_window,
     )
     if updated.recent_failures >= failure_threshold:
@@ -137,7 +136,7 @@ def lift_lockout(
     by_actor: str,
     by_pin: str,
     now: datetime | None = None,
-    pin_store_path=None,
+    pin_store_path: str | None = None,
 ) -> Event:
     """Supervisor (``by_actor``) lifts ``actor_id``'s lockout early.
 
@@ -152,10 +151,8 @@ def lift_lockout(
     if actor_id == by_actor:
         raise LockoutError("an attendant cannot lift their own lockout")
     if not verify_pin(by_actor, by_pin, path=pin_store_path):
-        raise LockoutError(
-            f"lift_lockout: {by_actor!r}'s PIN did not verify; refusing to lift"
-        )
-    now = now or datetime.now(timezone.utc)
+        raise LockoutError(f"lift_lockout: {by_actor!r}'s PIN did not verify; refusing to lift")
+    now = now or datetime.now(UTC)
     return log.append(
         "safety.lockout.lifted",
         {"actor_id": actor_id, "by": by_actor},
@@ -174,7 +171,7 @@ def state_for(
     """Reconstruct ``actor_id``'s lockout state from the event log."""
 
     actor_id = _validate_actor_id(actor_id)
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     return _project(
         log.read_all(),
         actor_id,
@@ -199,7 +196,7 @@ def _project(
     for event in events:
         if not event.type.startswith("safety."):
             continue
-        if event.payload.get("actor_id") != actor_id:  # type: ignore[attr-defined]
+        if event.payload.get("actor_id") != actor_id:
             continue
         ts = _parse_ts(event.ts)
         if ts is None:
@@ -208,13 +205,11 @@ def _project(
         if event.type == "safety.pin.failed":
             failures_in_window.append(ts)
             # Trim the window each time we add.
-            failures_in_window = [
-                t for t in failures_in_window if now - t <= failure_window
-            ]
+            failures_in_window = [t for t in failures_in_window if now - t <= failure_window]
         elif event.type == "safety.pin.ok":
             failures_in_window.clear()
         elif event.type == "safety.lockout.locked":
-            raw_until = event.payload.get("until")  # type: ignore[attr-defined]
+            raw_until = event.payload.get("until")
             until = _parse_ts(raw_until) if isinstance(raw_until, str) else None
             locked_until = until
             is_locked = until is not None and now < until
@@ -224,9 +219,7 @@ def _project(
             failures_in_window.clear()
 
     # Final window check (events older than the window don't count).
-    failures_in_window = [
-        t for t in failures_in_window if now - t <= failure_window
-    ]
+    failures_in_window = [t for t in failures_in_window if now - t <= failure_window]
 
     # Even without an explicit "lifted" event, the lockout naturally
     # expires when locked_until <= now.

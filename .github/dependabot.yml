@@ -1,0 +1,33 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "build(actions): "
+    labels:
+      - dependencies
+      - github-actions
+
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "build(deps): "
+    labels:
+      - dependencies
+      - python
+    # The runtime core is stdlib-only by design — see CLAUDE.md "Hard rules".
+    # Only `[project.optional-dependencies].dev` entries are tracked here.
+    allow:
+      - dependency-type: development

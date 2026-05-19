@@ -1,0 +1,27 @@
+site_name: Lemonade Cashier
+site_description: Local-first cashier assistant with deterministic financial core, audit/replay, and offline AI agents.
+site_url: https://bong-water-water-bong.github.io/lemonade-cashier/
+repo_url: https://github.com/bong-water-water-bong/lemonade-cashier
+repo_name: bong-water-water-bong/lemonade-cashier
+edit_uri: edit/main/docs/
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - content.code.copy
+    - content.action.edit
+  palette:
+    scheme: slate
+nav:
+  - Home: index.md
+  - Architecture: ARCHITECTURE.md
+  - Build order: BUILD_ORDER.md
+  - Safety posture: SAFETY.md
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - tables
+  - toc:
+      permalink: true

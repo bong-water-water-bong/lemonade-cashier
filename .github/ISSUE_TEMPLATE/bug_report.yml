@@ -1,0 +1,76 @@
+name: Bug report
+description: A reproducible defect in the cashier core, agents, or audit/replay path.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. Please fill in as much as you can.
+        For security issues, use the [private advisory](../../security/advisories/new) instead.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: A clear, concrete description of the behavior you observed.
+      placeholder: When I ran `lemonade-cashier` and entered "..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+      description: What should have happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: Exact commands, inputs, or test case. Smaller is better.
+      render: bash
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: Output of `git rev-parse HEAD` or `pip show lemonade-cashier | grep Version`.
+      placeholder: "0.1.0 (commit abcd1234)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Which build-order layer?
+      options:
+        - core (inventory / cart / totals / cash / receipts)
+        - audit (event log, replay)
+        - CIT (cash-in-transit, bag lifecycle)
+        - safety (PIN, lockout, profile, tamper, EOS report)
+        - agents (parser, supervisor, GAIA bridge, lemonade/flm clients)
+        - sensors (camera / speech / fusion — stubs)
+        - tooling / CI / packaging
+        - other
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / event-log excerpt
+      description: |
+        Paste relevant log lines or the JSONL event entries around the failure. Redact PII / PINs.
+      render: text
+
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: Python version, OS, whether Lemonade/FLM/GAIA are reachable.
+      placeholder: "py3.13 / Ubuntu 26.04 / Lemonade up on :8000 / FLM up on :11434"

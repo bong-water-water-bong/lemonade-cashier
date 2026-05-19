@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from lemonade_cashier.agents import proposals
 from lemonade_cashier.agents.lemonade_client import LemonadeConfig
 from lemonade_cashier.agents.qa_agent import ask
-from lemonade_cashier.agents import proposals
 
 
 def test_qa_disabled_returns_none(event_log):

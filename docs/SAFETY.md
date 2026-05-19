@@ -1,7 +1,7 @@
 # Safety
 
 This is the long-form rationale for the constraints in
-[`AGENTS.md`](../AGENTS.md). Read it before changing anything in
+[AGENTS.md](https://github.com/bong-water-water-bong/lemonade-cashier/blob/main/AGENTS.md). Read it before changing anything in
 `core/`, `audit/`, or `safety/`.
 
 ## Why a deterministic financial core matters
@@ -107,4 +107,4 @@ agentic commerce. When it does, those three sentences become tests in
 - A new monetary invariant → `tests/test_money.py`.
 - A new policy threshold → `safety/policy.py` + `.env.example`.
 - A new event type's auditability → `tests/test_replay.py`.
-- A new actor → the permission table in [`AGENTS.md`](../AGENTS.md).
+- A new actor -> the permission table in [AGENTS.md](https://github.com/bong-water-water-bong/lemonade-cashier/blob/main/AGENTS.md).

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or design discussion
+    url: https://github.com/bong-water-water-bong/lemonade-cashier/discussions
+    about: For open-ended questions or design conversation, please use GitHub Discussions.
+  - name: Security disclosure
+    url: https://github.com/bong-water-water-bong/lemonade-cashier/security/advisories/new
+    about: Report a vulnerability privately. Do NOT open a public issue for security problems.

@@ -43,7 +43,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from ..audit.eventlog import EventLog, EventLogError
@@ -51,7 +51,6 @@ from . import tamper
 from .bags import bags_from_events
 from .cit import till_state_from_events
 from .profile import profiles_from_events
-
 
 SCHEMA_VERSION = 1
 
@@ -70,7 +69,7 @@ class Report:
 def build(log: EventLog, *, now: datetime | None = None) -> Report:
     """Walk ``log`` and return a :class:`Report`."""
 
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     events = log.read_all()
 
     log_verified = True
@@ -99,9 +98,7 @@ def build(log: EventLog, *, now: datetime | None = None) -> Report:
         "totals": {
             "transactions": sum(p.total_transactions for p in profiles.values()),
             "voids": sum(p.voids for p in profiles.values()),
-            "bag_discrepancies": sum(
-                1 for s in bags.values() if s.status == "discrepancy"
-            ),
+            "bag_discrepancies": sum(1 for s in bags.values() if s.status == "discrepancy"),
             "pin_failures": sum(p.pin_failures for p in profiles.values()),
         },
     }
@@ -190,4 +187,4 @@ def _render_text(state: dict[str, object]) -> str:
     return "\n".join(lines)
 
 
-__all__ = ["Report", "SCHEMA_VERSION", "build", "save"]
+__all__ = ["SCHEMA_VERSION", "Report", "build", "save"]

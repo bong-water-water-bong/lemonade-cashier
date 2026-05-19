@@ -21,9 +21,16 @@ def test_low_conf_add_counted(event_log):
     event_log.append("transaction.open", {"attendant": "alice", "tax_rate": "0.15"})
     event_log.append(
         "cart.add",
-        {"sku": "X", "name": "x", "unit_price": "1.00", "taxable": True,
-         "quantity": 1, "actor": "attendant", "source": "fuzzy",
-         "confidence": 0.6},
+        {
+            "sku": "X",
+            "name": "x",
+            "unit_price": "1.00",
+            "taxable": True,
+            "quantity": 1,
+            "actor": "attendant",
+            "source": "fuzzy",
+            "confidence": 0.6,
+        },
     )
     p = profile_for(event_log.read_all(), "alice")
     assert p.low_conf_adds == 1
@@ -34,9 +41,16 @@ def test_model_proposed_counted(event_log):
     event_log.append("transaction.open", {"attendant": "alice", "tax_rate": "0.15"})
     event_log.append(
         "cart.add",
-        {"sku": "X", "name": "x", "unit_price": "1.00", "taxable": True,
-         "quantity": 1, "actor": "agent_auto", "source": "model_proposed",
-         "confidence": 0.95},
+        {
+            "sku": "X",
+            "name": "x",
+            "unit_price": "1.00",
+            "taxable": True,
+            "quantity": 1,
+            "actor": "agent_auto",
+            "source": "model_proposed",
+            "confidence": 0.95,
+        },
     )
     p = profile_for(event_log.read_all(), "alice")
     assert p.model_proposed_adds == 1
@@ -55,9 +69,16 @@ def test_void_attribution_to_most_active_attendant(event_log):
     event_log.append("transaction.open", {"attendant": "alice", "tax_rate": "0.15"})
     event_log.append(
         "cart.add",
-        {"sku": "X", "name": "x", "unit_price": "1.00", "taxable": True,
-         "quantity": 1, "actor": "attendant", "source": "typed",
-         "confidence": 1.0},
+        {
+            "sku": "X",
+            "name": "x",
+            "unit_price": "1.00",
+            "taxable": True,
+            "quantity": 1,
+            "actor": "attendant",
+            "source": "typed",
+            "confidence": 1.0,
+        },
     )
     event_log.append("cart.remove_last", {"sku": "X"})
     p = profile_for(event_log.read_all(), "alice")

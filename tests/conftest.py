@@ -9,30 +9,58 @@ from __future__ import annotations
 
 import csv
 import os
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 import pytest
 
 from lemonade_cashier.audit.eventlog import EventLog
 from lemonade_cashier.core import inventory
 
-
 SAMPLE_ROWS = [
-    {"sku": "APL001", "name": "apple", "price": "0.75", "taxable": "true",
-     "aliases": "apples|red apple"},
-    {"sku": "BAN001", "name": "banana", "price": "0.50", "taxable": "true",
-     "aliases": "bananas"},
-    {"sku": "MLK001", "name": "milk 1 gal", "price": "3.49", "taxable": "false",
-     "aliases": "milk|whole milk"},
-    {"sku": "BRD001", "name": "bread loaf", "price": "2.99", "taxable": "false",
-     "aliases": "bread"},
-    {"sku": "EGG001", "name": "eggs dozen", "price": "4.25", "taxable": "false",
-     "aliases": "eggs|dozen eggs"},
-    {"sku": "COF001", "name": "coffee 12oz", "price": "8.99", "taxable": "true",
-     "aliases": "coffee|ground coffee"},
-    {"sku": "COK001", "name": "coca-cola 12oz", "price": "1.50", "taxable": "true",
-     "aliases": "coke|coca cola|cola"},
+    {
+        "sku": "APL001",
+        "name": "apple",
+        "price": "0.75",
+        "taxable": "true",
+        "aliases": "apples|red apple",
+    },
+    {"sku": "BAN001", "name": "banana", "price": "0.50", "taxable": "true", "aliases": "bananas"},
+    {
+        "sku": "MLK001",
+        "name": "milk 1 gal",
+        "price": "3.49",
+        "taxable": "false",
+        "aliases": "milk|whole milk",
+    },
+    {
+        "sku": "BRD001",
+        "name": "bread loaf",
+        "price": "2.99",
+        "taxable": "false",
+        "aliases": "bread",
+    },
+    {
+        "sku": "EGG001",
+        "name": "eggs dozen",
+        "price": "4.25",
+        "taxable": "false",
+        "aliases": "eggs|dozen eggs",
+    },
+    {
+        "sku": "COF001",
+        "name": "coffee 12oz",
+        "price": "8.99",
+        "taxable": "true",
+        "aliases": "coffee|ground coffee",
+    },
+    {
+        "sku": "COK001",
+        "name": "coca-cola 12oz",
+        "price": "1.50",
+        "taxable": "true",
+        "aliases": "coke|coca cola|cola",
+    },
 ]
 
 
@@ -43,9 +71,7 @@ def seeded_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     csv_path = tmp_path / "products.csv"
     db_path = tmp_path / "products.db"
     with csv_path.open("w", encoding="utf-8", newline="") as fh:
-        writer = csv.DictWriter(
-            fh, fieldnames=["sku", "name", "price", "taxable", "aliases"]
-        )
+        writer = csv.DictWriter(fh, fieldnames=["sku", "name", "price", "taxable", "aliases"])
         writer.writeheader()
         writer.writerows(SAMPLE_ROWS)
 

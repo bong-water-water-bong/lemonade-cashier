@@ -45,10 +45,7 @@ class RiskScore:
     def to_state(self) -> dict[str, object]:
         return {
             "value": round(self.value, 3),
-            "factors": [
-                {"name": name, "delta": round(delta, 3)}
-                for name, delta in self.factors
-            ],
+            "factors": [{"name": name, "delta": round(delta, 3)} for name, delta in self.factors],
         }
 
 
@@ -64,9 +61,7 @@ def score(inputs: RiskInputs) -> RiskScore:
         delta = min(0.05 * low_conf_lines, 0.30)
         factors.append((f"{low_conf_lines}_low_confidence_lines", delta))
 
-    model_lines = sum(
-        1 for line in inputs.cart.lines if line.source == "model_proposed"
-    )
+    model_lines = sum(1 for line in inputs.cart.lines if line.source == "model_proposed")
     if model_lines:
         factors.append(("model_proposed_lines", min(0.04 * model_lines, 0.20)))
 

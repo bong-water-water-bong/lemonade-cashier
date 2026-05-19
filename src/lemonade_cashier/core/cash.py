@@ -54,10 +54,7 @@ class ChangeBreakdown:
     def to_state(self) -> dict[str, object]:
         return {
             "change_due": money_str(self.change_due),
-            "breakdown": [
-                {"denomination": money_str(d), "count": n}
-                for d, n in self.breakdown
-            ],
+            "breakdown": [{"denomination": money_str(d), "count": n} for d, n in self.breakdown],
         }
 
 
@@ -84,9 +81,7 @@ def compute_change(
     total_d = to_money(total)
     tendered_d = to_money(tendered)
     if tendered_d < total_d:
-        raise InsufficientTender(
-            f"tendered {money_str(tendered_d)} < total {money_str(total_d)}"
-        )
+        raise InsufficientTender(f"tendered {money_str(tendered_d)} < total {money_str(total_d)}")
 
     sorted_denoms = sorted(denominations, reverse=True)
     if any(d <= ZERO for d in sorted_denoms):
@@ -119,8 +114,8 @@ def compute_change(
 
 
 __all__ = [
-    "ChangeBreakdown",
     "DEFAULT_DENOMINATIONS",
+    "ChangeBreakdown",
     "InsufficientTender",
     "UnmakeableChange",
     "compute_change",

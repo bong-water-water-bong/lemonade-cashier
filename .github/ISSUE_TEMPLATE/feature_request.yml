@@ -1,0 +1,61 @@
+name: Feature request
+description: Propose a new capability, ideally tied to a build-order layer.
+title: "[feat] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Reliability before autonomy. Features that increase the cashier's autonomy must
+        also increase its testability — please describe both.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Concrete operator / user pain. Avoid "would be nice".
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: What new commands, events, or surfaces would exist? How does the operator interact?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Which build-order layer?
+      options:
+        - core (inventory / cart / totals / cash / receipts)
+        - audit (event log, replay)
+        - CIT (cash-in-transit, bag lifecycle)
+        - safety (PIN, lockout, profile, tamper, EOS report)
+        - agents
+        - sensors (camera / speech / fusion)
+        - tooling / CI / packaging
+        - new layer (please justify ordering)
+    validations:
+      required: true
+
+  - type: textarea
+    id: events
+    attributes:
+      label: New event types (if any)
+      description: Each new behavior should map to one or more append-only event types.
+      placeholder: "cit.bag.transferred, safety.attendant.training_started, ..."
+
+  - type: textarea
+    id: tests
+    attributes:
+      label: How will this be tested?
+      description: Regression test plan. Money math must pin to 4 decimal places.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What did you reject, and why?

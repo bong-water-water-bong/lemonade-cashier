@@ -110,9 +110,7 @@ class EventLog:
                     record = json.loads(line)
                     yield Event(**record)
                 except (json.JSONDecodeError, TypeError) as exc:
-                    raise EventLogError(
-                        f"malformed event at line {line_number}: {exc}"
-                    ) from exc
+                    raise EventLogError(f"malformed event at line {line_number}: {exc}") from exc
 
     def verify(self) -> None:
         """Walk the chain and raise :class:`EventLogError` on tamper.
@@ -128,13 +126,9 @@ class EventLog:
         prev_ts = ""
         for index, event in enumerate(self.iter_events(), start=1):
             if event.seq != index:
-                raise EventLogError(
-                    f"out-of-order seq: expected {index}, got {event.seq}"
-                )
+                raise EventLogError(f"out-of-order seq: expected {index}, got {event.seq}")
             if event.prev != prev:
-                raise EventLogError(
-                    f"hash chain broken at seq {event.seq}"
-                )
+                raise EventLogError(f"hash chain broken at seq {event.seq}")
             expected_hash = _hash_body(
                 {
                     "seq": event.seq,
@@ -145,17 +139,12 @@ class EventLog:
                 }
             )
             if expected_hash != event.hash:
-                raise EventLogError(
-                    f"hash mismatch at seq {event.seq}"
-                )
+                raise EventLogError(f"hash mismatch at seq {event.seq}")
             # ISO-8601 lex-compare is correct for monotonically
             # increasing UTC timestamps as long as offsets match (we
             # write Z/+00:00 exclusively).
             if prev_ts and event.ts < prev_ts:
-                raise EventLogError(
-                    f"non-monotonic ts at seq {event.seq}: "
-                    f"{event.ts} < {prev_ts}"
-                )
+                raise EventLogError(f"non-monotonic ts at seq {event.seq}: {event.ts} < {prev_ts}")
             prev = event.hash
             prev_ts = event.ts
 

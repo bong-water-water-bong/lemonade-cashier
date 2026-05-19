@@ -9,7 +9,6 @@ one based on configuration.
 from __future__ import annotations
 
 import json
-import socket
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -46,9 +45,7 @@ def normalize(
     # the cart context, and the attendant phrase into one block. The
     # `format: "json"` field tells the model to return JSON.
     try:
-        user_payload = json.dumps(
-            {"phrase": phrase, "cart_items": cart_shape.get("items", [])}
-        )
+        user_payload = json.dumps({"phrase": phrase, "cart_items": cart_shape.get("items", [])})
         body = {
             "model": config.model,
             "prompt": f"{SYSTEM_PROMPT}\n\nINPUT:\n{user_payload}\n\nOUTPUT:",
@@ -69,7 +66,7 @@ def normalize(
         )
         with urllib.request.urlopen(request, timeout=config.timeout_sec) as resp:
             raw = resp.read().decode("utf-8")
-    except (urllib.error.URLError, socket.timeout, TimeoutError, ConnectionError):
+    except (urllib.error.URLError, TimeoutError, ConnectionError):
         return None
 
     try:

@@ -2,22 +2,24 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from lemonade_cashier.safety.tamper import (
-    CLOCK_SKEW_TOLERANCE,
     LONG_QUIET_TOLERANCE,
     emit,
     scan,
 )
 
-
-T0 = datetime(2026, 5, 18, 12, 0, 0, tzinfo=timezone.utc)
+T0 = datetime(2026, 5, 18, 12, 0, 0, tzinfo=UTC)
 
 
 def test_clean_log_has_no_findings(event_log):
-    event_log.append("transaction.open", {"attendant": "alice"}, ts=T0.isoformat(timespec="seconds"))
-    event_log.append("transaction.close", {}, ts=(T0 + timedelta(minutes=1)).isoformat(timespec="seconds"))
+    event_log.append(
+        "transaction.open", {"attendant": "alice"}, ts=T0.isoformat(timespec="seconds")
+    )
+    event_log.append(
+        "transaction.close", {}, ts=(T0 + timedelta(minutes=1)).isoformat(timespec="seconds")
+    )
     findings = scan(event_log, now=T0 + timedelta(minutes=2))
     assert findings == []
 
@@ -45,11 +47,13 @@ def test_open_close_imbalance_flagged(event_log):
     # Four opens, one close → 3 abandoned transactions.
     for i in range(4):
         event_log.append(
-            "transaction.open", {"attendant": "alice"},
+            "transaction.open",
+            {"attendant": "alice"},
             ts=(T0 + timedelta(minutes=i)).isoformat(timespec="seconds"),
         )
     event_log.append(
-        "transaction.close", {},
+        "transaction.close",
+        {},
         ts=(T0 + timedelta(minutes=5)).isoformat(timespec="seconds"),
     )
     findings = scan(event_log, now=T0 + timedelta(minutes=6))
@@ -57,9 +61,10 @@ def test_open_close_imbalance_flagged(event_log):
 
 
 def test_emit_writes_event(event_log):
-    findings = scan(event_log, now=T0)
+    scan(event_log, now=T0)
     # Manually craft a finding to emit.
     from lemonade_cashier.safety.tamper import TamperFinding
+
     f = TamperFinding(
         kind="manual_test",
         severity="info",
