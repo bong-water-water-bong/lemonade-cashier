@@ -265,8 +265,54 @@ Keep implementation choices swappable behind small interfaces.
 | Vector database | Qdrant, ChromaDB |
 | API layer | FastAPI |
 | Local LLM runtime | Lemonade Server, Ollama, vLLM |
+| Evaluation | lemonade-eval |
 
 Do not introduce these dependencies into the financial core.
+
+## Evaluation Harness
+
+Use [`lemonade-eval`](https://github.com/lemonade-sdk/lemonade-eval) as the
+standard evaluation and benchmark harness for Lemonade-backed models.
+
+The project already supports:
+
+- loading models on a running Lemonade Server
+- benchmarking time to first token and tokens per second
+- prompting loaded models
+- VLM benchmarking with an image input
+- MMLU, HumanEval, perplexity, and lm-eval-harness accuracy tests
+- Lemonade Server system information capture
+
+Useful commands:
+
+```bash
+# Confirm the local Lemonade Server and machine profile.
+lemonade-eval system-info --format json
+
+# Load a model and benchmark text generation.
+lemonade-eval -i Qwen3-4B-Instruct-2507-GGUF load bench
+
+# Benchmark a vision-language model against a product image.
+lemonade-eval -i Qwen3-4B-VL-FLM load bench \
+  --image product-front.jpg \
+  --image-size 1024x800 \
+  -p "Identify visible brand, flavor, warning text, and package type." \
+  --output-tokens 128
+```
+
+For the product onboarding pipeline, use `lemonade-eval` to answer practical
+questions before promoting a model into the default local workflow:
+
+- how fast does the model process one product image?
+- how much image resizing is needed to fit context?
+- does it reliably extract brand, flavor, warnings, and product type?
+- is local VLM output useful enough to reduce manual typing?
+- does the chosen model still work when Lemonade Server is offline from the
+  public internet but local model files are cached?
+
+The cashier app should keep its own deterministic tests for inventory, cart,
+audit, and safety. `lemonade-eval` is for model and server behavior, not money
+math.
 
 ## ngrok Pairing
 
