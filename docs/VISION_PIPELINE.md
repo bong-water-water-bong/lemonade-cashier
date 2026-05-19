@@ -1,5 +1,8 @@
 # Vision Pipeline
 
+Architecture version: v3, spatial inventory intelligence and zone-aware
+vision.
+
 This document captures the Phase 2 vision direction for Lemonade Cashier.
 It is intentionally a planning document, not a commitment to build vision
 before the deterministic cashier core is stable.
@@ -13,10 +16,12 @@ events use today.
 Build a local-first product onboarding and recognition pipeline for:
 
 - getting store products into the local database
-- product recognition
+- intelligent product recognition
 - UPC scanning
-- visual SKU comparison
 - OCR extraction
+- visual SKU comparison
+- spatial inventory awareness
+- zone-aware deduction
 - checkout assistance
 - mobile capture
 - remote device pairing
@@ -28,6 +33,11 @@ device shapes make simple name matching unreliable.
 The first user-facing job is not autonomous checkout. The first job is making
 it easy for a store owner to create a high-quality local product database with
 an iPhone, a simple booth, and a guided capture flow.
+
+The next architectural step is spatial inventory intelligence. The system
+should not only ask "what object is this?" It should ask "what object is this,
+given the zone it came from?" A shelf or camera zone can narrow the candidate
+set, improve confidence, reduce false positives, and make checkout faster.
 
 ## Hardware Stack
 
@@ -79,15 +89,15 @@ embeddings, dimensions, and attendant confirmation.
 ## End-To-End Shape
 
 ```text
-iPhone Capture
+Store Cameras / iPhone Capture
     ->
-Lemonade Mobile Capture App
+Zone Detection Layer
     ->
-ngrok Secure Tunnel
+Lemonade Vision Pipeline
     ->
-Lemonade Local Linux Server
+OCR + Embeddings + UPC
     ->
-Vision + OCR + Embeddings
+Spatial Reasoning Engine
     ->
 Vector Database
     ->
@@ -98,6 +108,97 @@ POS Decision Engine
 
 The checkout agent may propose an item. It must not become the authority for
 price, SKU, voids, refunds, or transaction close.
+
+## Spatial Inventory Intelligence
+
+Zone-aware matching lets Lemonade Cashier reason from location as well as
+appearance. Each product candidate should be scored against the zone, shelf,
+and camera context that produced the observation.
+
+Example zones:
+
+| Zone | Typical inventory |
+| --- | --- |
+| `ZONE_LEFT_TOBACCO` | cigarettes, single sticks, cigars, rolling tobacco |
+| `ZONE_RIGHT_VAPE` | disposable vapes, e-liquid, pods, devices |
+| `ZONE_COUNTER` | lighters, gum, accessories, impulse purchases |
+| `ZONE_COOLER` | drinks and energy beverages |
+| `ZONE_BACK_STOCK` | inventory-only storage |
+| `ZONE_RESTRICTED` | controlled or attendant-only products |
+
+Zone-aware deduction changes the search problem. If an object appears in
+`ZONE_RIGHT_VAPE`, the matcher should prioritize vape embeddings, vape OCR
+labels, vape SKU records, and vape confidence thresholds instead of searching
+the full store inventory first.
+
+## Zone System Design
+
+Each store zone should eventually include:
+
+```text
+ZONE_ID
+ZONE_NAME
+CATEGORY_TYPES
+CAMERA_IDS
+SHELF_COORDINATES
+RESTRICTED_RULES
+CONFIDENCE_WEIGHTS
+```
+
+Example:
+
+```json
+{
+  "zone_id": "ZONE_RIGHT_VAPE",
+  "zone_name": "Right wall vape display",
+  "categories": ["disposable_vapes", "e_liquid", "pods", "devices"],
+  "camera_ids": ["CAM_RIGHT_01", "CAM_RIGHT_02"],
+  "shelf_coordinates": ["SHELF_VAPE_01", "SHELF_VAPE_02", "SHELF_VAPE_03"],
+  "restricted_rules": ["attendant_confirmation_for_low_confidence"],
+  "confidence_weights": {
+    "zone_match": 0.12,
+    "shelf_match": 0.08
+  }
+}
+```
+
+## Store Camera Layer
+
+Camera metadata should describe what each camera is supposed to prove.
+
+```text
+CAMERA_ID
+ZONE_ID
+FIELD_OF_VIEW
+SHELF_TARGETS
+POSITION
+ANGLE
+PURPOSE
+```
+
+Camera roles:
+
+| Camera type | Purpose |
+| --- | --- |
+| Overhead cameras | customer movement, pickup tracking, zone transitions |
+| Shelf cameras | product detection, shelf occupancy, stock level awareness |
+| Checkout cameras | final product verification, barcode scanning, OCR validation |
+
+The long-term product journey should be:
+
+```text
+Shelf zone
+    ->
+Customer pickup
+    ->
+Zone and shelf association
+    ->
+Checkout counter
+    ->
+Vision reconfirmation
+    ->
+POS decision
+```
 
 ## Out-Of-Box Product Onboarding
 
@@ -198,6 +299,8 @@ The product matcher should combine several independent signals:
 | Shape silhouette | Device and package shape |
 | Color profile | Similar package family matching |
 | Logo detection | Brand recognition |
+| Zone match | Category and location prior from store layout |
+| Shelf match | Product placement and historical shelf prior |
 
 No single weak signal should silently add a product to checkout.
 
@@ -213,6 +316,8 @@ Example:
 | OCR match | 0.86 |
 | Visual match | 0.91 |
 | Dimension match | 0.88 |
+| Zone match | 0.97 |
+| Shelf match | 0.93 |
 
 The final confidence determines:
 
@@ -221,6 +326,38 @@ The final confidence determines:
 - rejection when evidence is insufficient
 
 All low-confidence adds must remain visible in the event log and risk model.
+
+Illustrative final score inputs:
+
+```text
+confidence =
+  visual_match
+  + UPC_match
+  + OCR_match
+  + dimension_match
+  + zone_match
+  + shelf_match
+```
+
+The implementation should use explicit weights and thresholds, not this raw
+sum. The point is that location evidence becomes a first-class signal.
+
+Example deduction:
+
+```text
+Object detected:
+Camera: CAM_RIGHT_02
+Zone: ZONE_RIGHT_VAPE
+Shelf: SHELF_VAPE_03
+
+Visual match: 0.84
+OCR match: 0.77
+Dimension match: 0.88
+Zone match: 0.97
+
+Result:
+Likely disposable vape SKU, pending checkout reconfirmation.
+```
 
 ## iPhone Measurement Layer
 
@@ -247,7 +384,10 @@ The local server is responsible for:
 6. dimension estimation
 7. product matching
 8. vector search
-9. metadata indexing
+9. zone reasoning
+10. shelf deduction
+11. confidence calculation
+12. metadata indexing
 
 The processing path must be local-first. Cloud services require explicit
 approval and must never receive sensitive transaction or customer data by
@@ -262,6 +402,7 @@ Keep implementation choices swappable behind small interfaces.
 | OCR | PaddleOCR, Tesseract |
 | Embeddings | CLIP, OpenCLIP, SigLIP |
 | Object detection | YOLOv8, YOLO-NAS |
+| Tracking | ByteTrack, DeepSORT |
 | Vector database | Qdrant, ChromaDB |
 | API layer | FastAPI |
 | Local LLM runtime | Lemonade Server, Ollama, vLLM |
@@ -365,6 +506,9 @@ localhost:8787
 /api/product/verify
 /api/product/draft
 /api/product/commit
+/api/store/zones
+/api/store/cameras
+/api/store/shelves
 ```
 
 These endpoints are not part of the deterministic cashier core. They should
@@ -432,23 +576,34 @@ Operational metadata:
 - supplier
 - confidence thresholds
 
+Spatial metadata:
+
+- preferred zone
+- allowed zones
+- preferred shelf
+- historical positions
+- zone confidence
+
 Database rule:
 
 The local product database must remain usable without the vision system. UPC,
 name, price, tax category, and aliases are the checkout-critical fields.
-Images, OCR, dimensions, and embeddings improve recognition but must not be
-required to ring up a product manually.
+Images, OCR, dimensions, embeddings, zone metadata, and shelf metadata improve
+recognition but must not be required to ring up a product manually.
 
 ## Checkout Flow
 
 During checkout:
 
-1. observe object on counter
-2. attempt UPC scan
-3. if UPC is unavailable, use OCR, embeddings, and dimensions
-4. calculate confidence
-5. auto-add only above policy threshold
-6. request attendant confirmation below threshold
+1. track the product pickup zone when available
+2. track product movement toward checkout when available
+3. observe object on counter
+4. attempt UPC scan
+5. if UPC is unavailable, use OCR, embeddings, dimensions, zone, and shelf
+   evidence
+6. calculate confidence
+7. auto-add only above policy threshold
+8. request attendant confirmation below threshold
 
 The cashier core remains the source of truth. Vision never writes price or
 closes a transaction directly.
@@ -470,6 +625,9 @@ Phase 2:
 - secure mobile uploads
 - local OCR and barcode extraction
 - local visual embeddings
+- zone mapping
+- inventory positioning
+- shelf deduction
 - product metadata quality
 - candidate observations with confidence
 
@@ -485,6 +643,9 @@ Avoid for now:
 ## Design Principle
 
 The rotating platform and controlled lighting setup is the largest advantage
-in the vision pipeline.
+in the product onboarding pipeline. For in-store recognition, the largest
+advantage is structured layout: controlled environments, known zones,
+consistent shelf metadata, and spatial reasoning.
 
-Consistency beats complexity in retail computer vision.
+Consistency beats complexity in retail computer vision. Retail AI becomes
+dramatically easier when the system understands where products belong.
