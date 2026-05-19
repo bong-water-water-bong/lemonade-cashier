@@ -9,6 +9,14 @@ on:
       - ".github/workflows/docs.yml"
       - "README.md"
       - "CHANGELOG.md"
+  pull_request:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - ".github/workflows/docs.yml"
+      - "README.md"
+      - "CHANGELOG.md"
   workflow_dispatch:
 
 permissions:
@@ -42,6 +50,7 @@ jobs:
 
   deploy:
     needs: build
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     environment:

@@ -1,9 +1,22 @@
 # Lemonade Cashier
 
-> *autonomous cashier for ma & pa shops*
+[![ci](https://github.com/bong-water-water-bong/lemonade-cashier/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/bong-water-water-bong/lemonade-cashier/actions/workflows/ci.yml)
+[![docs](https://github.com/bong-water-water-bong/lemonade-cashier/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/bong-water-water-bong/lemonade-cashier/actions/workflows/docs.yml)
+[![codeql](https://github.com/bong-water-water-bong/lemonade-cashier/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/bong-water-water-bong/lemonade-cashier/actions/workflows/codeql.yml)
+[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)](https://github.com/bong-water-water-bong/lemonade-cashier/blob/main/pyproject.toml)
+[![Lemonade SDK app](https://img.shields.io/badge/Lemonade%20SDK-app-ffd34d)](https://github.com/lemonade-sdk/lemonade)
+[![local-first](https://img.shields.io/badge/local--first-offline%20cashier-2ea44f)](#lemonade-cashier)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-A local-first, offline-capable cashier assistant for the AMD **Strix Halo**
-(Ryzen AI MAX+ 395 / XDNA2) workstation. Built on the spec
+> A local-first cashier app for the Lemonade SDK ecosystem.
+
+Lemonade Cashier is an offline-capable cashier assistant for the AMD
+**Strix Halo** (Ryzen AI MAX+ 395 / XDNA2) workstation. It is designed as
+a practical retail app built around [Lemonade Server](https://github.com/lemonade-sdk/lemonade):
+deterministic checkout first, local Lemonade-powered agents second, and
+camera/vision product onboarding as the next layer.
+
+Built on the spec
 *Lemonade Cashier — Complete Strix Halo Build Specification* with a
 deliberate build order:
 
@@ -17,6 +30,24 @@ The deterministic financial core (everything up to "safety") runs with
 optional and only consulted as a *fallback* — if Lemonade Server or
 FastFlowLM is unreachable, the cashier degrades gracefully to its
 rule-based primary path.
+
+---
+
+## Lemonade SDK app
+
+This repository is a reference-style application for running a cashier
+workflow beside Lemonade Server:
+
+- **Lemonade Server** provides local OpenAI-compatible model access.
+- **FastFlowLM** can provide NPU-backed fallback parsing when available.
+- **Lemonade Eval** is the intended benchmark harness for model/server
+  performance.
+- The cashier core stays deterministic and testable even when every AI
+  service is offline.
+
+The app boundary is deliberate: Lemonade can propose normalized cashier
+events, but it never becomes the authority for SKU, price, voids, refunds,
+cash, or transaction close.
 
 ---
 
