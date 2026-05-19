@@ -25,8 +25,9 @@ from typing import Any
 from ..audit.eventlog import EventLog
 from ..core.cart import Cart, CartLine
 from ..core.inventory import ProductMatch, find_product
-from ..core.money import money_str, to_money
+from ..core.money import money_str, multiply, to_money
 from ..core.totals import compute_totals
+from ..safety import lockout, pins, policy
 from .flm_client import FLMConfig, normalize as flm_normalize
 from .lemonade_client import LemonadeConfig, normalize as lemonade_normalize
 from .parser import ParsedEvent, parse_event
@@ -42,6 +43,12 @@ class SupervisorConfig:
     lemonade: LemonadeConfig = field(default_factory=LemonadeConfig)
     flm: FLMConfig = field(default_factory=FLMConfig)
     attendant_id: str = "attendant-1"
+    # If set, the supervisor will demand a PIN before high-risk close
+    # and before removing a high-value cart line. Defaults to
+    # "supervisor"; the matching PIN must exist in the pin store.
+    supervisor_id: str = "supervisor"
+    # Path to the PIN store JSON. None → use safety.pins.DEFAULT_PIN_STORE.
+    pin_store: object = None  # Path | str | None at runtime
 
 
 @dataclass
@@ -55,6 +62,12 @@ class SupervisorOutcome:
     candidate_quantity: int = 1
     done: bool = False
     tender_breakdown: dict[str, Any] | None = None
+    # When set, the caller must prompt for a supervisor PIN and re-invoke
+    # handle_text(...) with pin=<entered pin>. The handler that needed
+    # the gate is named in ``pin_for_action`` so the CLI can show the
+    # right prompt ("PIN to void large item:").
+    needs_pin: bool = False
+    pin_for_action: str | None = None
 
 
 class Supervisor:
@@ -81,7 +94,9 @@ class Supervisor:
         )
         self._opened = True
 
-    def handle_text(self, raw_text: str, *, confirmed: bool = False) -> SupervisorOutcome:
+    def handle_text(
+        self, raw_text: str, *, confirmed: bool = False, pin: str | None = None
+    ) -> SupervisorOutcome:
         self.open_transaction()
         event = parse_event(raw_text)
 
@@ -97,15 +112,13 @@ class Supervisor:
         if event.action == "state":
             return self._outcome("current transaction")
         if event.action == "clear":
-            self.cart.clear()
-            self.log.append("cart.clear", {})
-            return self._outcome("started a separate order")
+            return self._clear_cart(pin=pin)
         if event.action == "remove_last":
-            return self._remove_last()
+            return self._remove_last(pin=pin)
         if event.action == "remove_named":
-            return self._remove_named(event.text)
+            return self._remove_named(event.text, pin=pin)
         if event.action == "set_last_quantity":
-            return self._set_last_quantity(event.quantity)
+            return self._set_last_quantity(event.quantity, pin=pin)
         if event.action == "tender":
             return self._tender(event.amount or "0")
         if event.action == "close":
@@ -191,7 +204,39 @@ class Supervisor:
         self.log.append("cart.add", _line_payload(line))
         return self._outcome(f"added {match.name} x{event.quantity}")
 
-    def _remove_last(self) -> SupervisorOutcome:
+    def _gate_void(
+        self, amount: Decimal, action: str, pin: str | None
+    ) -> SupervisorOutcome | None:
+        """Check policy.can_void(amount); if it demands a PIN, route via
+        :meth:`_check_supervisor_pin`. Returns:
+
+        * ``None`` if no gate fires (small amount) or the PIN is correct.
+        * A populated :class:`SupervisorOutcome` (needs_pin / denial)
+          that the caller MUST return verbatim if the gate refuses.
+
+        Every cart-mutation handler that reduces the cart total must
+        funnel through this helper. The contract is "the policy layer
+        decides, the supervisor enforces, the caller obeys" — adding a
+        new void path without calling _gate_void is a bug. Tests cover
+        each handler.
+        """
+
+        policy_outcome = policy.can_void(amount)
+        if not policy_outcome.requires_pin:
+            return None
+        return self._check_supervisor_pin(pin, action)
+
+    def _remove_last(self, *, pin: str | None = None) -> SupervisorOutcome:
+        if not self.cart.last_sku:
+            return self._outcome("nothing to remove")
+        last_line = next(
+            (line for line in self.cart.lines if line.sku == self.cart.last_sku),
+            None,
+        )
+        if last_line is not None:
+            blocked = self._gate_void(last_line.line_total, "void_last_line", pin)
+            if blocked is not None:
+                return blocked
         removed = self.cart.remove_last()
         if removed is None:
             return self._outcome("nothing to remove")
@@ -199,10 +244,20 @@ class Supervisor:
         self.log.append("cart.remove_last", {"sku": removed.sku})
         return self._outcome(f"removed {removed.name}")
 
-    def _remove_named(self, name: str) -> SupervisorOutcome:
+    def _remove_named(
+        self, name: str, *, pin: str | None = None
+    ) -> SupervisorOutcome:
         match = find_product(name)
         if match is None:
             return self._outcome(f"no product matched '{name}'")
+        existing = next(
+            (line for line in self.cart.lines if line.sku == match.sku), None
+        )
+        if existing is None:
+            return self._outcome(f"{match.name} is not in the cart")
+        blocked = self._gate_void(existing.line_total, "void_named", pin)
+        if blocked is not None:
+            return blocked
         removed = self.cart.remove_sku(match.sku)
         if removed is None:
             return self._outcome(f"{match.name} is not in the cart")
@@ -210,9 +265,25 @@ class Supervisor:
         self.log.append("cart.remove_sku", {"sku": match.sku})
         return self._outcome(f"removed {match.name}")
 
-    def _set_last_quantity(self, quantity: int) -> SupervisorOutcome:
+    def _set_last_quantity(
+        self, quantity: int, *, pin: str | None = None
+    ) -> SupervisorOutcome:
         if not self.cart.last_sku:
             return self._outcome("no item to adjust")
+        last_line = next(
+            (line for line in self.cart.lines if line.sku == self.cart.last_sku),
+            None,
+        )
+        if last_line is None:
+            return self._outcome("could not set quantity")
+        # Reducing quantity is a partial void — gate on the delta value.
+        if quantity < last_line.quantity:
+            delta_value = multiply(
+                last_line.unit_price, last_line.quantity - quantity
+            )
+            blocked = self._gate_void(delta_value, "void_quantity_reduction", pin)
+            if blocked is not None:
+                return blocked
         changed = self.cart.set_last_quantity(quantity)
         if not changed:
             return self._outcome("could not set quantity")
@@ -221,6 +292,26 @@ class Supervisor:
             {"sku": self.cart.last_sku, "quantity": quantity},
         )
         return self._outcome(f"set quantity to {quantity}")
+
+    def _clear_cart(self, *, pin: str | None = None) -> SupervisorOutcome:
+        """`separate order` / `next customer` clears the whole cart.
+
+        Above the void threshold this is the largest void possible, so
+        we gate on the current cart total. An empty cart clears for
+        free (no value at risk).
+        """
+
+        if self.cart.is_empty():
+            self.cart.clear()
+            self.log.append("cart.clear", {})
+            return self._outcome("started a separate order")
+        cart_total = self.cart.subtotal()
+        blocked = self._gate_void(cart_total, "void_clear_cart", pin)
+        if blocked is not None:
+            return blocked
+        self.cart.clear()
+        self.log.append("cart.clear", {})
+        return self._outcome("started a separate order")
 
     def _tender(self, amount: str) -> SupervisorOutcome:
         from ..core.cash import InsufficientTender, compute_change
@@ -246,12 +337,85 @@ class Supervisor:
         )
 
     def _close(self) -> SupervisorOutcome:
+        # NOTE: a future pass may gate this on a high-risk score
+        # (LC_RISK_BLOCK) and demand a PIN. Today the supervisor closes
+        # with no gate because the per-line gates already cover the
+        # ways a transaction's total can be inflated/deflated.
         self.log.append("transaction.close", {})
         outcome = self._outcome("transaction closed", done=True)
         self.cart.clear()
         self._opened = False
         self._voids_in_txn = 0
         return outcome
+
+    # ------------------------------------------------------------------
+    # Supervisor-PIN gate
+    # ------------------------------------------------------------------
+
+    def _check_supervisor_pin(
+        self, pin: str | None, action: str
+    ) -> SupervisorOutcome | None:
+        """Verify a supervisor PIN before a privileged action.
+
+        Returns:
+            ``None`` if no PIN gate is needed *or* the supplied PIN is
+            correct — the caller should proceed.
+            A populated :class:`SupervisorOutcome` (with ``needs_pin``
+            or a denial message) otherwise — the caller must abort and
+            return the outcome verbatim.
+        """
+
+        # First: is the supervisor account locked out?
+        lockout_state = lockout.state_for(self.log, self.config.supervisor_id)
+        if lockout_state.is_locked:
+            return self._outcome(
+                f"{self.config.supervisor_id!r} is locked out until "
+                f"{lockout_state.locked_until!s}; cannot {action}"
+            )
+
+        if pin is None:
+            return SupervisorOutcome(
+                message=f"supervisor PIN required to {action}",
+                state=self._state(),
+                needs_pin=True,
+                pin_for_action=action,
+            )
+
+        # A corrupt PIN store should not deny *all* operations silently;
+        # treat it as a failed attempt (so it shows up in lockout state
+        # + the EOS report) and surface the underlying error.
+        try:
+            ok = pins.verify_pin(
+                self.config.supervisor_id, pin, path=self.config.pin_store
+            )
+        except pins.PinError as exc:
+            ok = False
+            store_error: Exception | None = exc
+        else:
+            store_error = None
+
+        try:
+            lockout.record_pin_attempt(
+                self.log, self.config.supervisor_id, success=ok
+            )
+        except lockout.LockoutError as exc:
+            return self._outcome(f"PIN attempt rejected: {exc}")
+        if not ok:
+            if store_error is not None:
+                return self._outcome(f"PIN store error: {store_error}")
+            return self._outcome("incorrect supervisor PIN")
+        return None  # success — caller proceeds
+
+    # ------------------------------------------------------------------
+    # End-of-shift report
+    # ------------------------------------------------------------------
+
+    def report(self) -> dict[str, Any]:
+        """Build and return the end-of-shift report from the event log."""
+
+        from ..safety.report import build
+
+        return build(self.log).state
 
     # ------------------------------------------------------------------
     # CIT bag handlers
