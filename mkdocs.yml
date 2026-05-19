@@ -16,6 +16,7 @@ theme:
 nav:
   - Home: index.md
   - Architecture: ARCHITECTURE.md
+  - Vision pipeline: VISION_PIPELINE.md
   - Build order: BUILD_ORDER.md
   - Safety posture: SAFETY.md
 markdown_extensions:

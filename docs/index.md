@@ -12,5 +12,6 @@ Start with the [README on GitHub](https://github.com/bong-water-water-bong/lemon
 then use these docs for the project rules and architecture:
 
 - [Architecture](ARCHITECTURE.md)
+- [Vision pipeline](VISION_PIPELINE.md)
 - [Build order](BUILD_ORDER.md)
 - [Safety posture](SAFETY.md)
