@@ -15,6 +15,7 @@ theme:
     scheme: slate
 nav:
   - Home: index.md
+  - Lemonade Store: LEMONADE_STORE.md
   - Architecture: ARCHITECTURE.md
   - Vision pipeline: VISION_PIPELINE.md
   - Build order: BUILD_ORDER.md

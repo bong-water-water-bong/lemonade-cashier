@@ -11,6 +11,7 @@ remain interface-only until the next phase.
 Start with the [README on GitHub](https://github.com/bong-water-water-bong/lemonade-cashier#readme),
 then use these docs for the project rules and architecture:
 
+- [Lemonade Store](LEMONADE_STORE.md)
 - [Architecture](ARCHITECTURE.md)
 - [Vision pipeline](VISION_PIPELINE.md)
 - [Build order](BUILD_ORDER.md)
