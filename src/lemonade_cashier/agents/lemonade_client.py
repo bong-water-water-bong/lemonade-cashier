@@ -95,33 +95,38 @@ SYSTEM_PROMPT = (
 )
 
 
-def normalize(phrase: str, cart_shape: dict[str, Any], config: LemonadeConfig) -> NormalizedPhrase | None:
-    """Ask the local Lemonade Server to normalize ``phrase``.
+def chat_completions(
+    messages: list[dict[str, str]],
+    config: LemonadeConfig,
+    *,
+    response_format: dict[str, str] | None = None,
+) -> str | None:
+    """Generic chat-completions RPC against the local Lemonade Server.
 
-    Returns ``None`` on disabled, unreachable, timed-out, or malformed
-    responses. Never raises.
+    Returns the raw assistant content string, or ``None`` on any
+    failure (disabled, unreachable, timeout, malformed response, etc.).
+    Never raises.
+
+    This is the single entry point for every agent that needs to talk
+    to a local LLM. Each agent passes its OWN system prompt so the
+    Q&A agent, summarizer, and cart normalizer don't share a contract
+    — that distinction is what the registry layer enforces structurally,
+    and the prompt layer reflects.
     """
 
-    if not config.enabled or not phrase.strip():
+    if not config.enabled:
         return None
     if not _validate_url(config.url, allow_remote=config.allow_remote):
         return None
 
-    body = {
+    body: dict[str, Any] = {
         "model": config.model,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": json.dumps(
-                    {"phrase": phrase, "cart_items": cart_shape.get("items", [])}
-                ),
-            },
-        ],
+        "messages": messages,
         "max_tokens": config.max_tokens,
         "temperature": 0.0,
-        "response_format": {"type": "json_object"},
     }
+    if response_format is not None:
+        body["response_format"] = response_format
 
     try:
         encoded = json.dumps(body).encode("utf-8")
@@ -143,8 +148,45 @@ def normalize(phrase: str, cart_shape: dict[str, Any], config: LemonadeConfig) -
     try:
         envelope = json.loads(raw)
         content = envelope["choices"][0]["message"]["content"]
-        parsed = json.loads(content)
     except (KeyError, IndexError, ValueError, TypeError):
+        return None
+    # An explicit null/missing content is "model returned nothing useful" —
+    # return None rather than the literal string "None". Empty string is
+    # also "nothing", treated the same way.
+    if content is None or content == "":
+        return None
+    return str(content)
+
+
+def normalize(phrase: str, cart_shape: dict[str, Any], config: LemonadeConfig) -> NormalizedPhrase | None:
+    """Ask the local Lemonade Server to normalize ``phrase``.
+
+    Returns ``None`` on disabled, unreachable, timed-out, or malformed
+    responses. Never raises.
+    """
+
+    if not phrase.strip():
+        return None
+
+    content = chat_completions(
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": json.dumps(
+                    {"phrase": phrase, "cart_items": cart_shape.get("items", [])}
+                ),
+            },
+        ],
+        config=config,
+        response_format={"type": "json_object"},
+    )
+    if content is None:
+        return None
+
+    try:
+        parsed = json.loads(content)
+    except (ValueError, TypeError):
         return None
 
     candidate = str(parsed.get("candidate", "")).strip().lower()

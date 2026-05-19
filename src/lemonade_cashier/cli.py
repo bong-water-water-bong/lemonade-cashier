@@ -98,6 +98,7 @@ def main() -> None:  # pragma: no cover — interactive loop, exercised by smoke
                     if outcome.candidate_quantity > 1
                     else match.name,
                     confirmed=True,
+                    source_hint=outcome.candidate_source,
                 )
 
         _print_outcome(outcome)

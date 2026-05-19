@@ -28,6 +28,7 @@ from ..core.inventory import ProductMatch, find_product
 from ..core.money import money_str, multiply, to_money
 from ..core.totals import compute_totals
 from ..safety import lockout, pins, policy
+from . import proposals, registry
 from .flm_client import FLMConfig, normalize as flm_normalize
 from .lemonade_client import LemonadeConfig, normalize as lemonade_normalize
 from .parser import ParsedEvent, parse_event
@@ -68,6 +69,14 @@ class SupervisorOutcome:
     # right prompt ("PIN to void large item:").
     needs_pin: bool = False
     pin_for_action: str | None = None
+    # If a needs_confirmation outcome originated from a model-proposed
+    # match, the CLI re-invokes with the canonical product name. The
+    # canonical name resolves cleanly via find_product(), so the
+    # second pass never sees the normalizer branch and would default
+    # to actor="attendant" — laundering the agent provenance.
+    # We pass `candidate_source` back through the CLI as `source_hint`
+    # on the second handle_text() call, and the supervisor honors it.
+    candidate_source: str | None = None
 
 
 class Supervisor:
@@ -95,7 +104,12 @@ class Supervisor:
         self._opened = True
 
     def handle_text(
-        self, raw_text: str, *, confirmed: bool = False, pin: str | None = None
+        self,
+        raw_text: str,
+        *,
+        confirmed: bool = False,
+        pin: str | None = None,
+        source_hint: str | None = None,
     ) -> SupervisorOutcome:
         self.open_transaction()
         event = parse_event(raw_text)
@@ -134,7 +148,9 @@ class Supervisor:
         if event.action == "bag.reconcile":
             return self._bag_reconcile(event.bag_id or "")
         if event.action == "add_product":
-            return self._add_product(event, confirmed=confirmed)
+            return self._add_product(
+                event, confirmed=confirmed, source_hint=source_hint
+            )
 
         return self._outcome(f"unknown action: {event.action}")
 
@@ -142,24 +158,76 @@ class Supervisor:
     # Action handlers
     # ------------------------------------------------------------------
 
-    def _add_product(self, event: ParsedEvent, *, confirmed: bool) -> SupervisorOutcome:
+    def _add_product(
+        self,
+        event: ParsedEvent,
+        *,
+        confirmed: bool,
+        source_hint: str | None = None,
+    ) -> SupervisorOutcome:
         match = find_product(event.text)
         actor = "attendant"
-        source: str = "typed"
+        # source_hint lets the CLI re-invoke after a needs_confirmation
+        # without losing the original "model_proposed" / "fuzzy"
+        # provenance. Without it, the second pass with the canonical
+        # name would resolve at high confidence and default to "typed".
+        source: str = source_hint or "typed"
 
         if match is None or match.confidence < self.config.confidence_threshold:
             # Try LLM fallbacks in order: Lemonade, then FLM. Each is a
             # *normalizer*; the result re-enters find_product.
+            #
+            # Both arms now write an agent.proposal event into the same
+            # JSONL log as the cart, so an investigator can reconstruct
+            # exactly what the model said for any cart.add downstream.
             cart_shape = self._cart_shape()
-            normalized = lemonade_normalize(event.text, cart_shape, self.config.lemonade)
-            if normalized is None:
-                normalized = flm_normalize(event.text, cart_shape, self.config.flm)
+            normalized, agent_name = self._call_normalizer(event.text, cart_shape)
 
-            if normalized is not None and normalized.candidate != event.text:
-                normalized_match = find_product(normalized.candidate)
-                if normalized_match is not None:
-                    match = normalized_match
-                    source = "model_proposed"
+            if normalized is not None:
+                # Always record the model's response in the chain, even
+                # if it echoed the input unchanged. "Model said
+                # nothing useful" is auditable information; silently
+                # dropping it loses the signal.
+                if normalized.candidate == event.text:
+                    self._record_normalizer_proposal(
+                        agent=agent_name,
+                        input_phrase=event.text,
+                        output_phrase=normalized.candidate,
+                        confidence=normalized.confidence,
+                        decision="rejected",  # echoed input — no value added
+                    )
+                else:
+                    normalized_match = find_product(normalized.candidate)
+                    if normalized_match is not None:
+                        match = normalized_match
+                        source = "model_proposed"
+                        # `confirmed=True` wins over the confidence check.
+                        # Without this the proposal would still read
+                        # "needs_confirmation" on the second pass, even
+                        # though the supervisor is about to accept.
+                        # Decision must mirror what the supervisor
+                        # actually does, not a stale snapshot.
+                        if confirmed:
+                            _decision = "accepted"
+                        elif match.confidence >= self.config.confidence_threshold:
+                            _decision = "accepted"
+                        else:
+                            _decision = "needs_confirmation"
+                        self._record_normalizer_proposal(
+                            agent=agent_name,
+                            input_phrase=event.text,
+                            output_phrase=normalized.candidate,
+                            confidence=normalized.confidence,
+                            decision=_decision,  # see _decision above
+                        )
+                    else:
+                        self._record_normalizer_proposal(
+                            agent=agent_name,
+                            input_phrase=event.text,
+                            output_phrase=normalized.candidate,
+                            confidence=normalized.confidence,
+                            decision="rejected",  # model named a non-SKU; ignored
+                        )
 
         if match is None:
             return self._outcome(
@@ -176,6 +244,7 @@ class Supervisor:
                 needs_confirmation=True,
                 candidate_match=match,
                 candidate_quantity=event.quantity,
+                candidate_source=source,  # preserve provenance through round-trip
             )
 
         # Decide actor with explicit precedence: a model-proposed match
@@ -420,6 +489,90 @@ class Supervisor:
     # ------------------------------------------------------------------
     # CIT bag handlers
     # ------------------------------------------------------------------
+
+    def _call_normalizer(
+        self, phrase: str, cart_shape: dict[str, Any]
+    ) -> tuple[Any, str]:
+        """Try Lemonade first, then FLM. Return (NormalizedPhrase|None, agent_name).
+
+        If both clients are disabled or unreachable, ``agent_name`` is
+        ``"none"`` and the supervisor writes no proposal event — there
+        was no model to record. This keeps the audit log honest: a
+        missing agent.proposal event means *no model was asked*, not
+        *the model was asked and ignored*.
+        """
+
+        normalized = lemonade_normalize(phrase, cart_shape, self.config.lemonade)
+        if normalized is not None:
+            return normalized, "lemonade"
+        normalized = flm_normalize(phrase, cart_shape, self.config.flm)
+        if normalized is not None:
+            return normalized, "flm"
+        # If either client is *enabled* but returned None (unreachable),
+        # record the unreachable event so the audit log shows we tried.
+        if self.config.lemonade.enabled:
+            self._record_normalizer_proposal(
+                agent="lemonade",
+                input_phrase=phrase,
+                output_phrase=None,
+                confidence=0.0,
+                decision="unreachable",
+            )
+        if self.config.flm.enabled:
+            self._record_normalizer_proposal(
+                agent="flm",
+                input_phrase=phrase,
+                output_phrase=None,
+                confidence=0.0,
+                decision="unreachable",
+            )
+        return None, "none"
+
+    def _record_normalizer_proposal(
+        self,
+        *,
+        agent: str,
+        input_phrase: str,
+        output_phrase: Any,
+        confidence: float,
+        decision: proposals.Decision,
+    ) -> None:
+        """Write a ``normalize``-kind ``agent.proposal`` event.
+
+        Capability-checked at write time by :func:`proposals.write` as
+        defense-in-depth, in addition to the explicit check here. If
+        the supervisor ever needs to record a non-normalize proposal
+        (e.g., from the Q&A agent), add a sibling
+        ``_record_chat_proposal`` rather than parameterizing this one
+        — keeping the kind out of the signature makes the call sites
+        self-documenting.
+        """
+
+        try:
+            registry.assert_can_emit(agent, "normalize")
+        except registry.CapabilityError:
+            # Programming error — record an out_of_capability proposal
+            # so the chain shows the attempt. This is the one path
+            # where proposals.write does NOT re-check the registry.
+            proposals.write(
+                self.log,
+                agent=agent,
+                kind="normalize",
+                input={"phrase": input_phrase},
+                output={"error": "out_of_capability"},
+                confidence=0.0,
+                decision="out_of_capability",
+            )
+            return
+        proposals.write(
+            self.log,
+            agent=agent,
+            kind="normalize",
+            input={"phrase": input_phrase},
+            output={"phrase": output_phrase} if output_phrase else None,
+            confidence=confidence,
+            decision=decision,
+        )
 
     def _bag_seal(self, amount: str) -> SupervisorOutcome:
         """`bag seal <amount>` — manifest broken into standard US denominations.
