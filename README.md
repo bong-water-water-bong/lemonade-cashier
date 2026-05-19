@@ -8,6 +8,10 @@
 [![local-first](https://img.shields.io/badge/local--first-offline%20cashier-2ea44f)](#lemonade-cashier)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
+<p align="center">
+  <img src="docs/assets/lemonade-cashier-logo.svg" alt="Lemonade Cashier logo: local POS core, product intake, cart totals, audit replay, and Lemonade SDK agents" width="900">
+</p>
+
 > A local-first cashier app for the Lemonade SDK ecosystem.
 
 Lemonade Cashier is an offline-capable cashier assistant for the AMD
