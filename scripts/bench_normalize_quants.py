@@ -8,16 +8,18 @@ benchmarks; cashier's task is far narrower than those benchmarks, so
 the practical question is "does a smaller / cheaper quant still keep
 the supervisor's two-second budget *and* land the right SKU?".
 
-This script answers it by:
+The bench answers it by:
 
 1. Running every model named on the command line through the same
-   fixed corpus of misspelled phrases.
-2. Letting the real ``Supervisor`` resolve the model's output via
-   ``find_product`` — the same code path the cashier uses in
-   production. The bench is not testing the model in isolation; it
-   tests the *integrated* normalize→catalog pipeline.
+   fixed corpus of misspelled / slangy / oblique phrases.
+2. Feeding each model output through ``inventory.find_product`` —
+   the same code path the cashier uses in production. A row passes
+   iff the resolved SKU equals the corpus's ``expected_sku``. This
+   matches the supervisor's downstream behavior exactly; the older
+   "substring on canonical name" rule understated real performance
+   by ~5× (see ``~/Desktop/Shared AI /a5-bench-results-2026-05-20.md``).
 3. Reporting pass-rate, median latency, and total wall-time as a
-   markdown table.
+   deterministic markdown table.
 
 The bench requires ``LC_RUN_LIVE_MODEL=1`` because it hits a real
 loopback model server. Without the env var the script prints a
@@ -44,6 +46,8 @@ import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
+from lemonade_cashier.core.inventory import find_product
+
 # The pass-rate bar for "this quant is viable to default to in
 # normalize()". See IBM compression video wIXr22QTEHg — they show
 # <1% degradation on broad benchmarks. Cashier tolerates more because
@@ -56,10 +60,16 @@ VIABILITY_FLOOR: float = 0.80
 
 @dataclass(frozen=True)
 class PhraseProbe:
-    """One row of the bench corpus."""
+    """One row of the bench corpus.
+
+    ``expected_sku`` is the canonical SKU string the model output
+    must resolve to via :func:`find_product` for the probe to pass.
+    The bench grades on SKU equality, not on the literal product name,
+    because that's what the supervisor itself consumes downstream.
+    """
 
     phrase: str
-    expected_canonical: str
+    expected_sku: str
 
 
 @dataclass(frozen=True)
@@ -73,53 +83,53 @@ class BenchResult:
     median_ms: int
 
 
-# The corpus is intentionally hand-crafted, not generated. Twenty-plus
-# misspellings, abbreviations, and slang phrases that an attendant
-# might actually type at a real US grocery counter. Each maps to a
-# canonical product name that the cashier's sample catalog can
-# resolve via find_product().
+# Hand-crafted, not generated. 20+ misspellings, abbreviations, and
+# slang phrases an attendant might actually type at a US grocery
+# counter. Each maps to a canonical SKU from the sample catalog
+# (data/sample_products.csv).
 NORMALIZE_CORPUS: tuple[PhraseProbe, ...] = (
-    # milk variants
-    PhraseProbe("milkk", "milk 1 gal"),
-    PhraseProbe("milc", "milk 1 gal"),
-    PhraseProbe("whole milk gal", "milk 1 gal"),
-    PhraseProbe("a gallon of moo juice", "milk 1 gal"),
-    PhraseProbe("MLK", "milk 1 gal"),
-    # eggs variants
-    PhraseProbe("egz", "eggs dozen"),
-    PhraseProbe("a dozen eggs", "eggs dozen"),
-    PhraseProbe("dozen of those oval things", "eggs dozen"),
-    PhraseProbe("12 eggs please", "eggs dozen"),
-    # bread variants
-    PhraseProbe("breeed", "bread loaf"),
-    PhraseProbe("loaf bread", "bread loaf"),
-    PhraseProbe("brd", "bread loaf"),
-    PhraseProbe("a loaf of brd", "bread loaf"),
-    # banana variants
-    PhraseProbe("banaan", "banana"),
-    PhraseProbe("bananaa", "banana"),
-    PhraseProbe("nanner", "banana"),
-    PhraseProbe("yellow potassium fruit", "banana"),
-    # apple variants
-    PhraseProbe("apl", "apple"),
-    PhraseProbe("red apple", "apple"),
-    PhraseProbe("aapple", "apple"),
-    # coffee variants
-    PhraseProbe("cofee", "coffee 12oz"),
-    PhraseProbe("ground coffee 12oz", "coffee 12oz"),
-    PhraseProbe("a bag of grounds", "coffee 12oz"),
-    # cola variants
-    PhraseProbe("coca cola", "coca-cola 12oz"),
-    PhraseProbe("coke can", "coca-cola 12oz"),
-    PhraseProbe("a cola", "coca-cola 12oz"),
-    # extreme stretch — model should still produce *something* useful
-    PhraseProbe("white moo juice", "milk 1 gal"),
-    PhraseProbe("breakfast cereal companion liquid", "milk 1 gal"),
+    # milk (MLK001 — alias "milk")
+    PhraseProbe("milkk", "MLK001"),
+    PhraseProbe("milc", "MLK001"),
+    PhraseProbe("whole milk gal", "MLK001"),
+    PhraseProbe("a gallon of moo juice", "MLK001"),
+    PhraseProbe("MLK", "MLK001"),
+    # eggs (EGG001 — alias "eggs")
+    PhraseProbe("egz", "EGG001"),
+    PhraseProbe("a dozen eggs", "EGG001"),
+    PhraseProbe("dozen of those oval things", "EGG001"),
+    PhraseProbe("12 eggs please", "EGG001"),
+    # bread (BRD001 — alias "bread")
+    PhraseProbe("breeed", "BRD001"),
+    PhraseProbe("loaf bread", "BRD001"),
+    PhraseProbe("brd", "BRD001"),
+    PhraseProbe("a loaf of brd", "BRD001"),
+    # banana (BAN001 — alias "bananas")
+    PhraseProbe("banaan", "BAN001"),
+    PhraseProbe("bananaa", "BAN001"),
+    PhraseProbe("nanner", "BAN001"),
+    PhraseProbe("yellow potassium fruit", "BAN001"),
+    # apple (APL001 — alias "apple")
+    PhraseProbe("apl", "APL001"),
+    PhraseProbe("red apple", "APL001"),
+    PhraseProbe("aapple", "APL001"),
+    # coffee (COF001 — alias "coffee")
+    PhraseProbe("cofee", "COF001"),
+    PhraseProbe("ground coffee 12oz", "COF001"),
+    PhraseProbe("a bag of grounds", "COF001"),
+    # cola (COK001 — alias "coke")
+    PhraseProbe("coca cola", "COK001"),
+    PhraseProbe("coke can", "COK001"),
+    PhraseProbe("a cola", "COK001"),
+    # extreme stretch — a competent normalizer should still
+    # produce something the catalog can resolve
+    PhraseProbe("white moo juice", "MLK001"),
+    PhraseProbe("breakfast cereal companion liquid", "MLK001"),
 )
 
 
 # ---------------------------------------------------------------------------
-# Tally / report (pure functions, no I/O — exercised by unit tests)
+# Tally / report (pure functions over inventory lookups)
 # ---------------------------------------------------------------------------
 
 
@@ -127,13 +137,22 @@ _Row = tuple[PhraseProbe, str | None, int]
 
 
 def tally_results(*, model: str, rows: Sequence[_Row]) -> BenchResult:
-    """Reduce a list of (probe, observed_canonical, latency_ms) rows
-    into a :class:`BenchResult`.
+    """Reduce a list of ``(probe, observed_canonical_or_None, latency_ms)``
+    rows into a :class:`BenchResult`.
 
-    A row passes when ``observed_canonical`` case-insensitively contains
-    the probe's expected canonical phrase — that matches the supervisor's
-    real downstream behavior, which feeds the model output back into
-    :func:`inventory.find_product` (also case-insensitive).
+    A row passes when :func:`find_product` resolves the observed text
+    to the probe's ``expected_sku``. This mirrors the supervisor's
+    downstream behavior exactly — a model output that is "close enough"
+    for the catalog to land on the right SKU is the only thing that
+    matters in production. The older substring-on-canonical-name rule
+    underreported small-model performance by ~5× (the 2026-05-20 run
+    on qwen3:0.6b showed 4/28 substring vs 22/28 SKU-match).
+
+    A ``None`` observed → no SKU resolution → fail.
+
+    The bench requires a seeded inventory database; call
+    :func:`lemonade_cashier.core.inventory.initialize_database` before
+    invoking this function. The CLI ``main`` does so.
     """
 
     if not rows:
@@ -145,7 +164,10 @@ def tally_results(*, model: str, rows: Sequence[_Row]) -> BenchResult:
         latencies.append(ms)
         if observed is None:
             continue
-        if probe.expected_canonical.casefold() in observed.casefold():
+        match = find_product(observed)
+        if match is None:
+            continue
+        if match.sku == probe.expected_sku:
             passed += 1
 
     total = len(rows)
@@ -206,7 +228,7 @@ def _bench_one_model(
 def _live_lemonade_normalize_fn(model: str) -> Callable[[str], str | None]:
     """Build a `phrase -> canonical_or_None` closure that hits the
     real Lemonade Server with the named model. Imported lazily so
-    the unit tests don't need the cashier package on sys.path.
+    the unit tests don't need the package on sys.path.
     """
 
     from lemonade_cashier.agents.lemonade_client import LemonadeConfig
@@ -271,6 +293,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 0
 
+    # Ensure the inventory database is seeded — find_product()
+    # otherwise raises on the first call. Idempotent if already seeded.
+    from pathlib import Path
+
+    from lemonade_cashier.core.inventory import (
+        DEFAULT_CSV_PATH,
+        DEFAULT_DB_PATH,
+        initialize_database,
+    )
+
+    if not Path(DEFAULT_DB_PATH).exists():
+        initialize_database(db_path=DEFAULT_DB_PATH, csv_path=DEFAULT_CSV_PATH, force=True)
+
     results: list[BenchResult] = []
     for model in args.lemonade_models:
         print(f"# benchmarking lemonade::{model}")
@@ -296,10 +331,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 __all__ = [
-    "NORMALIZE_CORPUS",
-    "VIABILITY_FLOOR",
     "BenchResult",
+    "NORMALIZE_CORPUS",
     "PhraseProbe",
+    "VIABILITY_FLOOR",
     "format_report",
     "main",
     "tally_results",

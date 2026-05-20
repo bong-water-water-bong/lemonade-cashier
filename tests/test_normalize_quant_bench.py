@@ -1,20 +1,24 @@
 """Tests for the normalize-model quant-bench harness (A5).
 
-The bench harness compares two or more LLMs head-to-head on the
+The bench compares two or more LLMs head-to-head on the
 ``normalize()`` hop. It hits a *real* model server (no value in
-unit-testing live inference here), so the bulk of the bench is gated
-behind ``LC_RUN_LIVE_MODEL=1``.
+unit-testing live inference here), so the bulk of the bench is
+gated behind ``LC_RUN_LIVE_MODEL=1``.
 
-This test suite covers the parts that *don't* need a model:
+This suite covers the parts that don't need a model:
 
 * The phrase corpus is well-formed and large enough to give a
   meaningful pass-rate signal.
-* The tally / pass-rate / median-latency math is correct.
+* The tally math uses **SKU-match via ``find_product``**, which is
+  what the supervisor itself does downstream — not a substring on
+  the canonical product name.
 * The bench respects the ``LC_RUN_LIVE_MODEL`` gate.
 * The bench's report formatting is deterministic.
 """
 
 from __future__ import annotations
+
+from pathlib import Path
 
 import pytest
 
@@ -45,35 +49,58 @@ def test_corpus_phrases_are_unique():
     assert len(phrases) == len(set(phrases))
 
 
-def test_corpus_expects_real_sku_shape():
-    """Each probe names a non-empty expected canonical product phrase
-    that find_product will resolve. We don't query the catalog here
-    (that's the bench's job); we just sanity-check the shape."""
+def test_corpus_carries_expected_sku_not_phrase():
+    """Each probe names an ``expected_sku`` (the canonical SKU string,
+    e.g. ``MLK001``) — NOT the canonical product *name*. The bench
+    grades against the resolved SKU because that's what the supervisor
+    actually consumes downstream, and the substring-match rule the
+    previous bench used understated real performance by ~5×."""
 
     for probe in NORMALIZE_CORPUS:
         assert isinstance(probe.phrase, str) and probe.phrase.strip()
-        assert isinstance(probe.expected_canonical, str)
-        assert probe.expected_canonical.strip()
+        assert isinstance(probe.expected_sku, str)
+        # SKU shape is "XXX###" — three uppercase letters then digits.
+        sku = probe.expected_sku
+        assert sku == sku.upper()
+        assert sku[:3].isalpha()
+        assert sku[3:].isdigit()
+
+
+def test_corpus_skus_all_resolve_in_catalog(seeded_db):  # noqa: ARG001
+    """Every ``expected_sku`` in the corpus must be findable in the
+    sample catalog — otherwise the bench can never get that probe
+    right and the failure is a corpus error, not a model failing."""
+
+    from lemonade_cashier.core import inventory
+
+    seen_skus = {probe.expected_sku for probe in NORMALIZE_CORPUS}
+    catalog_skus = {product.sku for product in inventory.all_products()}
+    missing = seen_skus - catalog_skus
+    assert not missing, f"corpus expects SKUs absent from catalog: {sorted(missing)}"
 
 
 # ---------------------------------------------------------------------------
-# Tally math
+# Tally math — SKU-match through find_product
 # ---------------------------------------------------------------------------
 
 
-def test_tally_counts_passes_and_failures():
-    """tally_results turns a list of (probe, observed_sku, ms) rows into
-    a BenchResult with pass_rate and median_ms."""
+def test_tally_passes_when_observed_resolves_to_expected_sku(seeded_db):  # noqa: ARG001
+    """A model output that ``find_product`` resolves to the expected
+    SKU is a pass — even if the literal string doesn't substring-match
+    the canonical product name. This is the *integrated* test the
+    supervisor actually performs in production."""
 
     probes = [
-        PhraseProbe(phrase="milkk", expected_canonical="milk 1 gal"),
-        PhraseProbe(phrase="banaan", expected_canonical="banana"),
-        PhraseProbe(phrase="zzz-no-such-thing", expected_canonical="apple"),
+        PhraseProbe(phrase="milkk", expected_sku="MLK001"),
+        PhraseProbe(phrase="banaan", expected_sku="BAN001"),
+        PhraseProbe(phrase="zzz-no-such-thing", expected_sku="APL001"),
     ]
     rows = [
-        # (probe, observed_canonical_or_None, ms)
-        (probes[0], "milk 1 gal", 100),
-        (probes[1], "banana", 250),
+        # The model echoes the input back (qwen3:0.6b style); the
+        # catalog fuzzy matcher resolves it correctly.
+        (probes[0], "milkk", 100),
+        (probes[1], "banaan", 250),
+        # No model output at all → no SKU resolution → fail.
         (probes[2], None, 1500),
     ]
     r = tally_results(model="qwen3:0.6b", rows=rows)
@@ -84,6 +111,42 @@ def test_tally_counts_passes_and_failures():
     assert r.median_ms == 250  # middle of {100, 250, 1500}
 
 
+def test_tally_fails_when_observed_resolves_to_wrong_sku(seeded_db):  # noqa: ARG001
+    """The previous substring rule would falsely pass any output
+    containing the canonical name. The SKU rule catches mis-resolution.
+
+    ``a bag of grounds`` was observed in the wild resolving to ``CHP001``
+    (potato chips, via the "bag of chips" alias) instead of ``COF001``
+    (coffee). That's a fail, not a pass."""
+
+    probe = PhraseProbe(phrase="a bag of grounds", expected_sku="COF001")
+    rows = [(probe, "a bag of grounds", 90)]
+    r = tally_results(model="qwen3:0.6b", rows=rows)
+    assert r.passed == 0, "wrong-SKU fuzzy match must count as a fail"
+
+
+def test_tally_fails_when_observed_does_not_resolve_at_all(seeded_db):  # noqa: ARG001
+    """If the model output is something the catalog can't resolve to
+    any SKU (``find_product`` returns ``None``), that's a fail —
+    regardless of how creatively the output describes the product."""
+
+    probe = PhraseProbe(phrase="white moo juice", expected_sku="MLK001")
+    rows = [(probe, "white moo juice", 90)]
+    r = tally_results(model="qwen3:0.6b", rows=rows)
+    assert r.passed == 0
+
+
+def test_tally_passes_when_observed_is_case_inverted(seeded_db):  # noqa: ARG001
+    """``find_product`` is case-insensitive, so the tally inherits
+    that property — uppercase / mixed-case model outputs that resolve
+    to the right SKU still pass."""
+
+    probe = PhraseProbe(phrase="MLK", expected_sku="MLK001")
+    rows = [(probe, "MILK", 80)]
+    r = tally_results(model="qwen3:0.6b", rows=rows)
+    assert r.passed == 1
+
+
 def test_tally_empty_is_safe():
     """No probes → zero counts, no division-by-zero."""
 
@@ -92,17 +155,6 @@ def test_tally_empty_is_safe():
     assert r.passed == 0
     assert r.pass_rate == 0.0
     assert r.median_ms == 0
-
-
-def test_tally_treats_case_insensitive_match():
-    """The model rarely emits perfectly-cased product names. The bench
-    accepts a case-insensitive substring match because the supervisor's
-    actual consumer (`find_product`) is also case-insensitive."""
-
-    probe = PhraseProbe(phrase="MLK", expected_canonical="milk 1 gal")
-    rows = [(probe, "Milk 1 Gal", 80)]
-    r = tally_results(model="qwen3:0.6b", rows=rows)
-    assert r.passed == 1
 
 
 # ---------------------------------------------------------------------------
@@ -120,13 +172,10 @@ def test_report_renders_a_markdown_table():
         BenchResult(model="qwen3:4b", total=20, passed=19, pass_rate=0.95, median_ms=520),
     ]
     out = format_report(results)
-    # Header row, alignment row, then one row per model.
     lines = [line for line in out.splitlines() if line.strip()]
     assert lines[0].startswith("| model")
-    # Column order is fixed: model | pass / total | pass_rate | median_ms.
     headers = [c.strip() for c in lines[0].strip("|").split("|")]
     assert headers == ["model", "pass / total", "pass_rate", "median_ms"]
-    # Values are present.
     assert "qwen3:0.6b" in out
     assert "qwen3:4b" in out
     assert "17 / 20" in out
@@ -143,8 +192,7 @@ def test_report_renders_a_markdown_table():
 
 def test_bench_skips_when_live_model_env_unset(monkeypatch, capsys):
     """Running the bench module without LC_RUN_LIVE_MODEL=1 must not
-    touch any network — it prints a clear skip notice and returns 0
-    so it's safe to add to `make all` in the future without exploding."""
+    touch any network — it prints a clear skip notice and returns 0."""
 
     from scripts.bench_normalize_quants import main
 
@@ -164,25 +212,54 @@ def test_bench_refuses_to_run_without_any_model_target(monkeypatch, capsys):
     from scripts.bench_normalize_quants import main
 
     monkeypatch.setenv("LC_RUN_LIVE_MODEL", "1")
-    rc = main([])  # no models at all
+    rc = main([])
     out = capsys.readouterr().out
     assert rc != 0
     assert "no model" in out.lower() or "no models" in out.lower()
 
 
 # ---------------------------------------------------------------------------
-# Pass-rate floor expectation (documentation-shaped test)
+# Pass-rate floor expectation
 # ---------------------------------------------------------------------------
 
 
 def test_pass_rate_floor_constant_is_eighty_percent():
-    """The IBM compression video (wIXr22QTEHg) says ~1% accuracy hit on
+    """IBM compression video (wIXr22QTEHg) says ~1% accuracy hit on
     INT4/INT8 quantization. Cashier's normalize() can tolerate more
     sloppiness than that because the supervisor always re-checks the
     output against find_product. We pin a generous 80% floor as the
-    'this quant is viable for normalize()' bar.
-    """
+    'this quant is viable for normalize()' bar."""
 
     from scripts.bench_normalize_quants import VIABILITY_FLOOR
 
     assert pytest.approx(0.80) == VIABILITY_FLOOR
+
+
+# ---------------------------------------------------------------------------
+# Repro of the 2026-05-20 live finding
+# ---------------------------------------------------------------------------
+
+
+def test_substring_rule_would_have_understated_qwen3_0_6b(seeded_db):  # noqa: ARG001
+    """Documentation-shaped regression: on the 2026-05-20 live bench
+    against qwen3:0.6b, the substring-match rule reported 4/28 while
+    SKU-match reported 22/28. Pin a sample of those outcomes so a
+    future contributor reverting to substring-match would break this
+    test loudly."""
+
+    cases: list[tuple[str, str, str]] = [
+        # (phrase, model_output_observed, expected_sku) — SKU-match passes
+        ("milkk", "milkk", "MLK001"),
+        ("egz", "egz", "EGG001"),
+        ("breeed", "breeed", "BRD001"),
+        ("cofee", "cofee", "COF001"),
+        ("coca cola", "coca cola", "COK001"),
+    ]
+    probes = [PhraseProbe(phrase=p, expected_sku=sku) for p, _, sku in cases]
+    rows = [(probes[i], cases[i][1], 100 + i) for i in range(len(cases))]
+    r = tally_results(model="qwen3:0.6b", rows=rows)
+    assert r.passed == len(cases), (
+        "SKU-match should pass all of these; the old substring rule would have"
+        " failed every one because 'milkk' doesn't substring-contain"
+        " 'milk 1 gal'."
+    )
