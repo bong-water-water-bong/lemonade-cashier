@@ -71,8 +71,10 @@ def normalize(
 
     try:
         envelope = json.loads(raw)
-        parsed = json.loads(envelope.get("response", "{}"))
     except (ValueError, TypeError):
+        return None
+    parsed = _parse_inner_json(envelope.get("response", "{}"))
+    if parsed is None:
         return None
 
     candidate = str(parsed.get("candidate", "")).strip().lower()
@@ -85,6 +87,101 @@ def normalize(
     confidence = max(0.0, min(1.0, confidence))
 
     return NormalizedPhrase(candidate=candidate, confidence=confidence, raw=parsed)
+
+
+def _parse_inner_json(text: str) -> dict[str, Any] | None:
+    """Parse the ``response`` field of an Ollama-compatible /api/generate
+    envelope into a dict, tolerating three common malformations seen
+    from small models (e.g. qwen3:0.6b) that ignore ``format: "json"``:
+
+    1. **Pristine JSON** — fast path. ``json.loads`` straight up.
+    2. **Markdown-fenced JSON** — ``"```json\\n{...}\\n```"`` or just
+       ``"```\\n{...}\\n```"``. Strip the fence and retry.
+    3. **First-balanced-object** — model prepended chain-of-thought
+       prose or appended garbage / extra braces. Walk the string,
+       extract the first ``{...}`` substring with balanced braces
+       (string-literal-aware so a brace inside ``"..."`` doesn't
+       count), and parse that.
+
+    Returns the parsed dict, or ``None`` if no recoverable JSON
+    object is present. This is a *tolerance* layer, not a sanitizer
+    — the caller still checks for the ``candidate`` field.
+    """
+
+    if not isinstance(text, str) or not text.strip():
+        return None
+
+    # 1. Pristine JSON.
+    try:
+        result = json.loads(text)
+        return result if isinstance(result, dict) else None
+    except (ValueError, TypeError):
+        pass
+
+    # 2. Markdown fence — accept ```json, ```JSON, or bare ```.
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        # Drop the opening fence (with optional language tag) and the
+        # closing fence, then retry.
+        first_newline = stripped.find("\n")
+        if first_newline != -1:
+            inner = stripped[first_newline + 1 :]
+            if inner.endswith("```"):
+                inner = inner[:-3]
+            try:
+                result = json.loads(inner.strip())
+                return result if isinstance(result, dict) else None
+            except (ValueError, TypeError):
+                pass
+
+    # 3. First balanced ``{...}`` (string-literal-aware).
+    obj = _first_balanced_object(text)
+    if obj is None:
+        return None
+    try:
+        result = json.loads(obj)
+        return result if isinstance(result, dict) else None
+    except (ValueError, TypeError):
+        return None
+
+
+def _first_balanced_object(text: str) -> str | None:
+    """Return the first balanced ``{...}`` substring in ``text`` whose
+    braces are balanced, treating brace characters inside double-
+    quoted JSON strings as opaque content (i.e. ``{"a":"}"}`` is
+    one object, not malformed).
+
+    Returns ``None`` if no opening brace is present or no balanced
+    closing brace is found.
+    """
+
+    start = text.find("{")
+    if start == -1:
+        return None
+
+    depth = 0
+    in_string = False
+    escape = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if escape:
+            escape = False
+            continue
+        if ch == "\\" and in_string:
+            escape = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : i + 1]
+    return None
 
 
 __all__ = ["FLMConfig", "normalize"]
