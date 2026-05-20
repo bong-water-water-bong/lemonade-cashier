@@ -18,8 +18,6 @@ This suite covers the parts that don't need a model:
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from scripts.bench_normalize_quants import (
@@ -54,7 +52,7 @@ def test_corpus_carries_expected_sku_not_phrase():
     e.g. ``MLK001``) — NOT the canonical product *name*. The bench
     grades against the resolved SKU because that's what the supervisor
     actually consumes downstream, and the substring-match rule the
-    previous bench used understated real performance by ~5×."""
+    previous bench used understated real performance by ~5x."""
 
     for probe in NORMALIZE_CORPUS:
         assert isinstance(probe.phrase, str) and probe.phrase.strip()
@@ -66,7 +64,7 @@ def test_corpus_carries_expected_sku_not_phrase():
         assert sku[3:].isdigit()
 
 
-def test_corpus_skus_all_resolve_in_catalog(seeded_db):  # noqa: ARG001
+def test_corpus_skus_all_resolve_in_catalog(seeded_db):
     """Every ``expected_sku`` in the corpus must be findable in the
     sample catalog — otherwise the bench can never get that probe
     right and the failure is a corpus error, not a model failing."""
@@ -84,7 +82,7 @@ def test_corpus_skus_all_resolve_in_catalog(seeded_db):  # noqa: ARG001
 # ---------------------------------------------------------------------------
 
 
-def test_tally_passes_when_observed_resolves_to_expected_sku(seeded_db):  # noqa: ARG001
+def test_tally_passes_when_observed_resolves_to_expected_sku(seeded_db):
     """A model output that ``find_product`` resolves to the expected
     SKU is a pass — even if the literal string doesn't substring-match
     the canonical product name. This is the *integrated* test the
@@ -111,7 +109,7 @@ def test_tally_passes_when_observed_resolves_to_expected_sku(seeded_db):  # noqa
     assert r.median_ms == 250  # middle of {100, 250, 1500}
 
 
-def test_tally_fails_when_observed_resolves_to_wrong_sku(seeded_db):  # noqa: ARG001
+def test_tally_fails_when_observed_resolves_to_wrong_sku(seeded_db):
     """The previous substring rule would falsely pass any output
     containing the canonical name. The SKU rule catches mis-resolution.
 
@@ -125,7 +123,7 @@ def test_tally_fails_when_observed_resolves_to_wrong_sku(seeded_db):  # noqa: AR
     assert r.passed == 0, "wrong-SKU fuzzy match must count as a fail"
 
 
-def test_tally_fails_when_observed_does_not_resolve_at_all(seeded_db):  # noqa: ARG001
+def test_tally_fails_when_observed_does_not_resolve_at_all(seeded_db):
     """If the model output is something the catalog can't resolve to
     any SKU (``find_product`` returns ``None``), that's a fail —
     regardless of how creatively the output describes the product."""
@@ -136,7 +134,7 @@ def test_tally_fails_when_observed_does_not_resolve_at_all(seeded_db):  # noqa: 
     assert r.passed == 0
 
 
-def test_tally_passes_when_observed_is_case_inverted(seeded_db):  # noqa: ARG001
+def test_tally_passes_when_observed_is_case_inverted(seeded_db):
     """``find_product`` is case-insensitive, so the tally inherits
     that property — uppercase / mixed-case model outputs that resolve
     to the right SKU still pass."""
@@ -240,7 +238,7 @@ def test_pass_rate_floor_constant_is_eighty_percent():
 # ---------------------------------------------------------------------------
 
 
-def test_substring_rule_would_have_understated_qwen3_0_6b(seeded_db):  # noqa: ARG001
+def test_substring_rule_would_have_understated_qwen3_0_6b(seeded_db):
     """Documentation-shaped regression: on the 2026-05-20 live bench
     against qwen3:0.6b, the substring-match rule reported 4/28 while
     SKU-match reported 22/28. Pin a sample of those outcomes so a
