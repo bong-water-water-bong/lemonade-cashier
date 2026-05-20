@@ -67,10 +67,28 @@ def _validate_url(url: str, *, allow_remote: bool = False) -> bool:
 
 @dataclass(frozen=True)
 class LemonadeConfig:
-    url: str = "http://127.0.0.1:8000"
-    model: str = "Qwen3-4B-GGUF"
+    # Default URL is lemond's omnirouter port. The shipped Lemonade
+    # Server systemd unit (and the manual install path) listen on
+    # 13305, not the historical 8000. See A5 bench notes in
+    # ~/Desktop/Shared\ AI\ /a5-bench-results-2026-05-20-lemond.md.
+    url: str = "http://127.0.0.1:13305"
+    # IBM Granite 3.3-2B Q4_K_M (≈1.4 GB, instruction-tuned, NOT a
+    # Qwen3-family reasoning model). Wins the A5 bench at 23/28 SKU
+    # match and 176 ms median — well above the 80% viability floor and
+    # well inside the 2 s timeout. Earlier defaults (Qwen3-4B-GGUF and
+    # Qwen3.5-4B-GGUF) lose the entire token budget to <think>
+    # reasoning before emitting any content. Operators install with:
+    #
+    #     lemonade pull unsloth/granite-3.3-2b-instruct-GGUF:Q4_K_M
+    #
+    # See ibm-technology-transcripts-cashier-impact.md (action A5).
+    model: str = "granite-3.3-2b-instruct-GGUF-Q4_K_M"
     timeout_sec: float = 2.0
-    max_tokens: int = 64
+    # Bumped from 64 → 256: small even for a non-reasoning model, but
+    # 64 was below the average Qwen3 reasoning-trace length and any
+    # future reasoning model would silently break on it. 256 keeps the
+    # budget cheap while leaving headroom.
+    max_tokens: int = 256
     enabled: bool = False
     allow_remote: bool = False  # set True only if you intentionally use a non-loopback URL
 
