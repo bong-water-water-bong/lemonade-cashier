@@ -17,7 +17,7 @@ The bench answers it by:
    iff the resolved SKU equals the corpus's ``expected_sku``. This
    matches the supervisor's downstream behavior exactly; the older
    "substring on canonical name" rule understated real performance
-   by ~5× (see ``~/Desktop/Shared AI /a5-bench-results-2026-05-20.md``).
+   by ~5x (see ``~/Desktop/Shared AI /a5-bench-results-2026-05-20.md``).
 3. Reporting pass-rate, median latency, and total wall-time as a
    deterministic markdown table.
 
@@ -145,7 +145,7 @@ def tally_results(*, model: str, rows: Sequence[_Row]) -> BenchResult:
     downstream behavior exactly — a model output that is "close enough"
     for the catalog to land on the right SKU is the only thing that
     matters in production. The older substring-on-canonical-name rule
-    underreported small-model performance by ~5× (the 2026-05-20 run
+    underreported small-model performance by ~5x (the 2026-05-20 run
     on qwen3:0.6b showed 4/28 substring vs 22/28 SKU-match).
 
     A ``None`` observed → no SKU resolution → fail.
@@ -331,10 +331,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 __all__ = [
-    "BenchResult",
     "NORMALIZE_CORPUS",
-    "PhraseProbe",
     "VIABILITY_FLOOR",
+    "BenchResult",
+    "PhraseProbe",
     "format_report",
     "main",
     "tally_results",
