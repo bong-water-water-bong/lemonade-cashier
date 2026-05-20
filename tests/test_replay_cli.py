@@ -83,9 +83,7 @@ def test_agent_activity_on_empty_log_reports_zero(tmp_path: Path, capsys):
     assert "total proposals: 0" in out
 
 
-def test_agent_activity_renders_legacy_agent_id_as_explicit_label(
-    tmp_path: Path, capsys
-):
+def test_agent_activity_renders_legacy_agent_id_as_explicit_label(tmp_path: Path, capsys):
     """A proposal payload without ``agent_id`` counts under the ``None``
     bucket in the projection. The CLI renders that bucket as
     ``(legacy: no agent_id)`` so the output is grep-friendly — empty
@@ -147,7 +145,9 @@ def test_agent_activity_sorts_breakdowns_alphabetically(tmp_path: Path, capsys):
             log,
             agent=agent,
             kind="normalize",
-            input={}, output={}, confidence=0.5,
+            input={},
+            output={},
+            confidence=0.5,
             decision=decision,
         )
 

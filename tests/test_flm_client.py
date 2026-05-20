@@ -57,9 +57,7 @@ def test_parses_pristine_json_response(monkeypatch: pytest.MonkeyPatch):
     """When the model honors ``format: "json"`` cleanly, the existing
     parse path keeps working byte-for-byte as before."""
 
-    envelope = json.dumps(
-        {"response": json.dumps({"candidate": "milk 1 gal", "confidence": 0.91})}
-    )
+    envelope = json.dumps({"response": json.dumps({"candidate": "milk 1 gal", "confidence": 0.91})})
     _patch_urlopen(monkeypatch, envelope)
 
     r = flm_normalize("milkk", {"items": []}, _config())
@@ -79,7 +77,7 @@ def test_parses_markdown_fenced_json(monkeypatch: pytest.MonkeyPatch):
     client must strip the fence and parse what's inside, not silently
     return None."""
 
-    inner = "```json\n{\"candidate\": \"milk 1 gal\", \"confidence\": 0.88}\n```"
+    inner = '```json\n{"candidate": "milk 1 gal", "confidence": 0.88}\n```'
     envelope = json.dumps({"response": inner})
     _patch_urlopen(monkeypatch, envelope)
 
@@ -106,7 +104,7 @@ def test_parses_markdown_fence_plus_extra_brace(monkeypatch: pytest.MonkeyPatch)
     """Combined: the inner response is markdown-fenced AND has a
     trailing extra brace. Both layers of tolerance must compose."""
 
-    inner = "```json\n{\"candidate\": \"banana\", \"confidence\": 0.95}}\n```"
+    inner = '```json\n{"candidate": "banana", "confidence": 0.95}}\n```'
     envelope = json.dumps({"response": inner})
     _patch_urlopen(monkeypatch, envelope)
 
@@ -122,7 +120,7 @@ def test_parses_response_with_thinking_prefix(monkeypatch: pytest.MonkeyPatch):
 
     inner = (
         "<think>The phrase 'breeed' looks like bread.</think>\n"
-        "{\"candidate\": \"bread loaf\", \"confidence\": 0.8}"
+        '{"candidate": "bread loaf", "confidence": 0.8}'
     )
     envelope = json.dumps({"response": inner})
     _patch_urlopen(monkeypatch, envelope)

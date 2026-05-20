@@ -65,20 +65,40 @@ def test_proposal_counts_by_decision_and_agent(event_log):
     """Mixed decisions and agents → correct per-bucket counts."""
 
     proposals.write(
-        event_log, agent="lemonade", kind="normalize",
-        input={}, output={}, confidence=0.9, decision="accepted",
+        event_log,
+        agent="lemonade",
+        kind="normalize",
+        input={},
+        output={},
+        confidence=0.9,
+        decision="accepted",
     )
     proposals.write(
-        event_log, agent="lemonade", kind="normalize",
-        input={}, output={}, confidence=0.4, decision="rejected",
+        event_log,
+        agent="lemonade",
+        kind="normalize",
+        input={},
+        output={},
+        confidence=0.4,
+        decision="rejected",
     )
     proposals.write(
-        event_log, agent="flm", kind="normalize",
-        input={}, output=None, confidence=0.0, decision="unreachable",
+        event_log,
+        agent="flm",
+        kind="normalize",
+        input={},
+        output=None,
+        confidence=0.0,
+        decision="unreachable",
     )
     proposals.write(
-        event_log, agent="flm", kind="normalize",
-        input={}, output={}, confidence=0.7, decision="needs_confirmation",
+        event_log,
+        agent="flm",
+        kind="normalize",
+        input={},
+        output={},
+        confidence=0.7,
+        decision="needs_confirmation",
     )
 
     s = summarize(event_log)
@@ -102,15 +122,23 @@ def test_by_agent_id_distinguishes_two_lemonade_instances(event_log):
     rows in by_agent_id but share their row in by_agent."""
 
     proposals.write(
-        event_log, agent="lemonade",
+        event_log,
+        agent="lemonade",
         agent_id="lemonade@http://127.0.0.1:8000#qwen3:4b",
-        kind="normalize", input={}, output={}, confidence=0.9,
+        kind="normalize",
+        input={},
+        output={},
+        confidence=0.9,
         decision="accepted",
     )
     proposals.write(
-        event_log, agent="lemonade",
+        event_log,
+        agent="lemonade",
         agent_id="lemonade@http://127.0.0.1:8001#gemma3:1b",
-        kind="normalize", input={}, output={}, confidence=0.7,
+        kind="normalize",
+        input={},
+        output={},
+        confidence=0.7,
         decision="accepted",
     )
 
@@ -151,15 +179,23 @@ def test_minted_delegations_counts_unique_ids(event_log):
     flm unreachable for the same decision) → 1 minted delegation."""
 
     proposals.write(
-        event_log, agent="lemonade",
+        event_log,
+        agent="lemonade",
         delegation_id="d" * 32,
-        kind="normalize", input={}, output=None, confidence=0.0,
+        kind="normalize",
+        input={},
+        output=None,
+        confidence=0.0,
         decision="unreachable",
     )
     proposals.write(
-        event_log, agent="flm",
+        event_log,
+        agent="flm",
         delegation_id="d" * 32,  # same id — same supervisor decision
-        kind="normalize", input={}, output=None, confidence=0.0,
+        kind="normalize",
+        input={},
+        output=None,
+        confidence=0.0,
         decision="unreachable",
     )
 
@@ -173,10 +209,14 @@ def test_delegation_consumed_by_cart_event(event_log):
     proposal counts as a consumed delegation. No orphan."""
 
     proposals.write(
-        event_log, agent="lemonade",
+        event_log,
+        agent="lemonade",
         delegation_id="a" * 32,
-        kind="normalize", input={}, output={"phrase": "milk"},
-        confidence=0.9, decision="accepted",
+        kind="normalize",
+        input={},
+        output={"phrase": "milk"},
+        confidence=0.9,
+        decision="accepted",
     )
     event_log.append(
         "cart.add",
@@ -264,18 +304,14 @@ def test_summary_reflects_supervisor_round_trip(
     from lemonade_cashier.agents import supervisor as supervisor_mod
 
     cfg = SupervisorConfig(
-        lemonade=LemonadeConfig(
-            enabled=True, url="http://127.0.0.1:8000", model="qwen3:4b"
-        ),
+        lemonade=LemonadeConfig(enabled=True, url="http://127.0.0.1:8000", model="qwen3:4b"),
         flm=FLMConfig(enabled=False),
     )
 
     def fake_lemonade_normalize(phrase, cart_shape, config):
         return NormalizedPhrase(candidate="milk 1 gal", confidence=0.95, raw={})
 
-    monkeypatch.setattr(
-        supervisor_mod, "lemonade_normalize", fake_lemonade_normalize
-    )
+    monkeypatch.setattr(supervisor_mod, "lemonade_normalize", fake_lemonade_normalize)
 
     sv = Supervisor(event_log, cfg)
     sv.handle_text("white moo juice")  # forces the normalizer branch
@@ -308,8 +344,13 @@ def test_summarize_accepts_a_path(tmp_path: Path):
 
     log = EventLog(tmp_path / "events.jsonl")
     proposals.write(
-        log, agent="lemonade", kind="normalize",
-        input={}, output={}, confidence=0.9, decision="accepted",
+        log,
+        agent="lemonade",
+        kind="normalize",
+        input={},
+        output={},
+        confidence=0.9,
+        decision="accepted",
     )
 
     s = summarize(tmp_path / "events.jsonl")
