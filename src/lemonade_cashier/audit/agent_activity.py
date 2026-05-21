@@ -35,9 +35,7 @@ from .eventlog import Event, EventLog
 # write surface in ``_line_payload`` + the remove handlers. Listed
 # here explicitly so a future cart-mutation verb won't silently slip
 # its delegation tracking past the audit projection.
-_CART_EVENT_TYPES: frozenset[str] = frozenset(
-    {"cart.add", "cart.remove_last", "cart.remove_sku"}
-)
+_CART_EVENT_TYPES: frozenset[str] = frozenset({"cart.add", "cart.remove_last", "cart.remove_sku"})
 
 
 @dataclass(frozen=True)
@@ -82,9 +80,7 @@ def summarize(source: EventLog | Path | str) -> AgentActivitySummary:
             decision = str(p.get("decision", ""))
             agent = str(p.get("agent", "?"))
             agent_id_raw = p.get("agent_id")
-            agent_id: str | None = (
-                str(agent_id_raw) if agent_id_raw is not None else None
-            )
+            agent_id: str | None = str(agent_id_raw) if agent_id_raw is not None else None
             delegation_id = p.get("delegation_id")
 
             by_decision[decision] += 1
@@ -100,9 +96,7 @@ def summarize(source: EventLog | Path | str) -> AgentActivitySummary:
                 cart_delegation_ids.append(delegation_id)
 
     delegations_consumed_by_cart = len(cart_delegation_ids)
-    orphan_delegations = sum(
-        1 for d in cart_delegation_ids if d not in proposal_delegation_ids
-    )
+    orphan_delegations = sum(1 for d in cart_delegation_ids if d not in proposal_delegation_ids)
 
     return AgentActivitySummary(
         total_proposals=total_proposals,
