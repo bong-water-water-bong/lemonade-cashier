@@ -116,3 +116,40 @@ def test_cart_add_same_price_still_merges():
     cart.add(make_line(price="1.00", qty=2))
     assert len(cart.lines) == 1
     assert cart.lines[0].quantity == 3
+
+
+def test_item_count_sums_quantities():
+    cart = Cart()
+    cart.add(make_line(sku="APL001", name="apple", price="0.75", qty=3))
+    cart.add(make_line(sku="MLK001", name="milk", price="3.49", taxable=False, qty=2))
+    assert cart.item_count() == 5
+
+
+def test_item_count_empty_cart():
+    assert Cart().item_count() == 0
+
+
+def test_to_state_structure():
+    cart = Cart()
+    cart.add(make_line(sku="APL001", name="apple", price="1.00", qty=2, taxable=True))
+    cart.add(make_line(sku="WTR001", name="water", price="2.50", qty=1, taxable=False))
+    state = cart.to_state()
+
+    assert state["item_count"] == 3
+    assert state["subtotal"] == "4.50"
+    assert state["taxable_subtotal"] == "2.00"
+    assert state["last_sku"] == "WTR001"
+    assert len(state["items"]) == 2
+    # Each line snapshot must carry unit_price, quantity, line_total.
+    first = state["items"][0]
+    assert first["sku"] == "APL001"
+    assert first["quantity"] == 2
+    assert first["unit_price"] == "1.00"
+    assert first["line_total"] == "2.00"
+
+
+def test_to_state_empty_cart():
+    state = Cart().to_state()
+    assert state["items"] == []
+    assert state["item_count"] == 0
+    assert state["last_sku"] is None

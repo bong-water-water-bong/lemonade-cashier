@@ -140,6 +140,10 @@ class Cart:
     def is_empty(self) -> bool:
         return not self.lines
 
+    def item_count(self) -> int:
+        """Total number of individual items across all lines."""
+        return sum(line.quantity for line in self.lines)
+
     def subtotal(self) -> Decimal:
         total = ZERO
         for line in self.lines:
@@ -152,6 +156,16 @@ class Cart:
             if line.taxable:
                 total += line.line_total
         return total
+
+    def to_state(self) -> dict[str, object]:
+        """Snapshot of the full cart, suitable for logging and replay."""
+        return {
+            "items": [line.to_state() for line in self.lines],
+            "item_count": self.item_count(),
+            "subtotal": money_str(self.subtotal()),
+            "taxable_subtotal": money_str(self.taxable_subtotal()),
+            "last_sku": self.last_sku,
+        }
 
 
 # Ordering used by `Cart.add` to pick the *less* trusted actor/source on
