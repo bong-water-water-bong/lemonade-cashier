@@ -160,7 +160,7 @@ class Cart:
     def to_state(self) -> dict[str, object]:
         """Snapshot of the full cart, suitable for logging and replay."""
         return {
-            "lines": [line.to_state() for line in self.lines],
+            "items": [line.to_state() for line in self.lines],
             "item_count": self.item_count(),
             "subtotal": money_str(self.subtotal()),
             "taxable_subtotal": money_str(self.taxable_subtotal()),

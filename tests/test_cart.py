@@ -139,9 +139,9 @@ def test_to_state_structure():
     assert state["subtotal"] == "4.50"
     assert state["taxable_subtotal"] == "2.00"
     assert state["last_sku"] == "WTR001"
-    assert len(state["lines"]) == 2
+    assert len(state["items"]) == 2
     # Each line snapshot must carry unit_price, quantity, line_total.
-    first = state["lines"][0]
+    first = state["items"][0]
     assert first["sku"] == "APL001"
     assert first["quantity"] == 2
     assert first["unit_price"] == "1.00"
@@ -150,6 +150,6 @@ def test_to_state_structure():
 
 def test_to_state_empty_cart():
     state = Cart().to_state()
-    assert state["lines"] == []
+    assert state["items"] == []
     assert state["item_count"] == 0
     assert state["last_sku"] is None
