@@ -30,7 +30,6 @@ dev = [
   "pytest-cov>=5",
   "ruff>=0.6",
   "mypy>=1.10",
-  "pr-agent",
 ]
 lemonade = [
   # Optional: only needed if you call Lemonade Server's OpenAI-compatible API.
