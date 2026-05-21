@@ -85,6 +85,18 @@ def test_replay_round_trips_cit_events(event_log):
     assert witnessed["payload"]["witness"] == "bob"
 
 
+def test_replay_round_trips_tender_event(event_log):
+    """transaction.tender amounts survive the JSONL round-trip as exact Decimal strings."""
+    from lemonade_cashier.audit.replay import replay
+
+    event_log.append("transaction.open", {"tax_rate": "0.15"})
+    event_log.append("transaction.tender", {"tender": "20.00", "change": "5.37"})
+
+    state = replay(event_log.read_all()).to_state()
+    assert state["tender"] == "20.00"
+    assert state["change"] == "5.37"
+
+
 def test_replay_records_malformed_event_without_crashing(event_log):
     """A garbled event payload should land in unknown_events with a
     replay_error annotation; subsequent events still apply cleanly."""

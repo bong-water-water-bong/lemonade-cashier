@@ -60,6 +60,14 @@ def test_display_quantization():
     assert to_display(Decimal("1.2250")) == Decimal("1.22")
 
 
+def test_multiply_preserves_four_decimal_places():
+    # Intermediate arithmetic must stay at 4dp, not collapse to 2dp.
+    # If multiply() rounded to display precision internally, 1.3333 * 3
+    # would yield 4.00 instead of 3.9999.
+    price = to_money("1.3333")
+    assert multiply(price, 3) == Decimal("3.9999")
+
+
 def test_no_float_money_in_core():
     """No `float` for money in core/. Find a 'price' or 'amount' bound to a float.
 
