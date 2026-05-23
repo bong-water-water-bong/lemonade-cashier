@@ -61,3 +61,11 @@ data/pins.json.tmp
 # Local config
 *.local.yaml
 *.local.json
+
+# Embedded lemond binaries (downloaded via make lemond-setup; not version-controlled)
+vendor/lemonade/lemond
+vendor/lemonade/lemonade
+
+# Embedded lemond runtime cache
+.lemonade-cashier/
+.superpowers/
