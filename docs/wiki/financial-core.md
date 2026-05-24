@@ -13,7 +13,7 @@ All monetary values enter as strings or `Decimal`. All intermediate math stays a
 - **Why 4dp intermediate, 2dp output**: Avoids accumulated rounding error across a multi-item session while presenting clean currency values to users.
 
 ## Gotchas
-- Running `import requests` or any non-stdlib package inside `core/` will be caught by CI. Don't work around it.
+- Running `import requests` or any non-stdlib package inside `core/` violates the isolation boundary. This is enforced by code review, not by CI tooling — no linter rule currently blocks it. The convention is real; the automation is not.
 - `Decimal('1.1') != Decimal(1.1)` — always construct from strings, never from float literals.
 
 ## Related

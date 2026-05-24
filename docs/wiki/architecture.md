@@ -19,7 +19,7 @@ iPhone/scanner → sensors layer → deterministic parser → financial core →
 
 **audit/**: Hash-chained JSONL event log. The single source of truth. Receipts and live state are projections derived from replay. Every new event type requires replay coverage.
 
-**sensors/**: Stubs for hardware input (vision pipeline, barcode, scale). Fills from `lemonade-vision-server`.
+**sensors/**: Hardware input stubs (`camera.py`, `speech.py`, `fusion.py`). Currently return `None`; will be wired to `lemonade-vision-server` HTTP API.
 
 **integrations/**: Lemonade, FastFlowLM, GAIA calls. All have 2-second hard timeouts. Network failures return `None` — never raise, never block.
 
@@ -31,9 +31,9 @@ iPhone/scanner → sensors layer → deterministic parser → financial core →
 - **Why 2-second timeouts**: POS systems must not block at the register. Any AI call that takes longer than 2s is a UX failure; returning `None` and falling back is always correct.
 
 ## Gotchas
-- `float` anywhere in money math is a bug. The linter catches it — don't suppress it.
+- `float` anywhere in money math is a bug. This boundary is enforced by code review, not by CI tooling — the linter does not restrict imports per-directory. Don't rely on automation to catch it.
 - Adding a new event type without replay coverage will break `audit/replay.py` — always add replay test first (TDD).
-- GAIA calls require the GAIA desktop to be running locally. In tests, mock at the integration boundary, not inside `core/`.
+- GAIA calls require the GAIA desktop to be running locally. In tests, mock at `agents/gaia_bridge.py` — not inside `core/`, not at `integrations/gaia.py` (that path does not exist).
 - `sensors.*` stubs return `None` until the vision pipeline is wired. Code consuming sensor output must handle `None`.
 
 ## Related

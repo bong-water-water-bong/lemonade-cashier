@@ -21,8 +21,8 @@ Agent identity and delegation are tracked per-session for audit purposes. Each a
 - **Why log agent inferences**: Audit trail requires knowing when a price or SKU came from an agent vs. the deterministic path. This feeds into reconciliation and dispute resolution.
 
 ## Gotchas
-- Agent delegation-id must be set at session start — calls without a delegation-id will fail audit validation.
-- GAIA requires the desktop process running. In CI, mock at `integrations/gaia.py`, not inside the agent.
+- delegation-id is minted per-call when an LLM is invoked — it is not a session-level initialization. Deterministic paths produce no delegation-id, and that is correct. Do not add session-level delegation-id initialization; look at `agents/supervisor.py` for the actual minting logic.
+- GAIA requires the desktop process running. In CI, mock at `agents/gaia_bridge.py` — `integrations/gaia.py` does not exist.
 - Agent responses for price are advisory only. The operator must confirm before a non-catalog price is accepted.
 
 ## Related

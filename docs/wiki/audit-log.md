@@ -21,7 +21,7 @@ Each event is a JSON object appended to the log file. Each event includes a hash
 
 ## Gotchas
 - Every new event type needs a replay handler in `audit/replay.py`. Add the handler before the event producer — TDD.
-- Log rotation must preserve the chain — the last hash of the rotated log must be the first hash reference of the new log.
+- Log rotation must preserve the chain — the last hash of the rotated log must be the first hash reference of the new log. (Log rotation is not yet implemented; this is a design constraint for when it is.)
 - Never delete or truncate the log to "fix" a problem. Replay from genesis is always possible and is the correct recovery path.
 
 ## Related

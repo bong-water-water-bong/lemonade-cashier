@@ -12,7 +12,7 @@ Core financial path is stable. Agents (Lemonade/FLM/GAIA) integrated as fallback
 - [[agent-model]] — if touching `agents/` or `integrations/`
 
 ## Open Threads
-- Vision pipeline integration: `sensors.*` stubs need wiring to `lemonade-vision-server` HTTP API
+- Vision pipeline integration: `sensors.*` stubs need wiring to `lemonade-vision-server` HTTP API — see `docs/VISION_PIPELINE.md` for contract
 - CIT (Cash-in-Transit) phase is next after vision pipeline — see `docs/SAFETY.md` for scope
 
 ## Hard Rules (non-negotiable)
