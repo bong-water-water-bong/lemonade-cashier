@@ -36,6 +36,8 @@ deliberate build order:
 >
 > *Reliability before autonomy.*
 
+**→ [Project Wiki](docs/wiki/README.md)** — architecture, decisions, gotchas, and agent onboarding.
+
 The deterministic financial core (everything up to "safety") runs with
 **Python standard library only**. Agents and AI-assisted parsing are
 optional and only consulted as a *fallback* — if Lemonade Server or
