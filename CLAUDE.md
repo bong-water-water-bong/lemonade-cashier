@@ -1,3 +1,5 @@
+> **Start here:** Read `docs/wiki/README.md` before any work on this project.
+
 # CLAUDE.md - conventions for Lemonade Cashier
 
 Local-first cashier assistant with a deterministic financial core, append-only
