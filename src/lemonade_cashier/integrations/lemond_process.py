@@ -29,6 +29,7 @@ Override paths via env vars:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import subprocess
@@ -144,7 +145,7 @@ class LemondProcess:
             return
 
         # Ask lemond to unload models and exit cleanly before killing the process.
-        try:
+        with contextlib.suppress(urllib.error.URLError, OSError):
             urllib.request.urlopen(
                 urllib.request.Request(
                     _SHUTDOWN_URL_TEMPLATE.format(port=self.port),
@@ -152,8 +153,6 @@ class LemondProcess:
                 ),
                 timeout=2.0,
             )
-        except (urllib.error.URLError, OSError):
-            pass
 
         try:
             self._proc.wait(timeout=5.0)
@@ -171,7 +170,7 @@ class LemondProcess:
         """Return True iff the subprocess is alive."""
         return self._proc is not None and self._proc.poll() is None
 
-    def __enter__(self) -> "LemondProcess":
+    def __enter__(self) -> LemondProcess:
         self.start()
         if not self.wait_healthy():
             raise RuntimeError(
