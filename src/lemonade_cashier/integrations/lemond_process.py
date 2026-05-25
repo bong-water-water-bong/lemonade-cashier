@@ -44,9 +44,7 @@ _VENDOR_DIR = Path(
         str(Path(__file__).parent.parent.parent.parent / "vendor" / "lemonade"),
     )
 )
-_CACHE_DIR = Path(
-    os.environ.get("LEMOND_CACHE_DIR", str(Path.home() / ".lemonade-cashier"))
-)
+_CACHE_DIR = Path(os.environ.get("LEMOND_CACHE_DIR", str(Path.home() / ".lemonade-cashier")))
 _DEFAULT_PORT = int(os.environ.get("LEMOND_PORT", "13400"))
 
 _HEALTH_URL_TEMPLATE = "http://127.0.0.1:{port}/api/v1/health"
