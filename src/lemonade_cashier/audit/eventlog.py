@@ -89,7 +89,7 @@ class EventLog:
         timestamp = ts if ts is not None else _utc_now_iso()
         prev = self._last_hash if self._last_hash else GENESIS_PREV
         event_id = f"evt-{uuid.uuid4().hex[:12]}"
-        
+
         actual_actor = actor if actor is not None else {"kind": "attendant", "id": "unknown"}
 
         body = {
@@ -153,10 +153,10 @@ class EventLog:
                 raise EventLogError(f"out-of-order seq: expected {index}, got {event.seq}")
             if event.prev != prev:
                 raise EventLogError(f"hash chain broken at seq {event.seq}")
-            
+
             body = asdict(event)
             body.pop("hash")
-            
+
             expected_hash = _hash_body(body)
             if expected_hash != event.hash:
                 raise EventLogError(f"hash mismatch at seq {event.seq}")
