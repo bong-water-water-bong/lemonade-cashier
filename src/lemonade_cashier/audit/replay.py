@@ -81,6 +81,8 @@ class ReplayState:
                     payload=cast("dict[str, object]", e["payload"]),
                     prev="",
                     hash="",
+                    event_id=str(e.get("event_id", "")),
+                    store_id=str(e.get("store_id", "tie-dye-farms")),
                 )
                 for e in self.cit_events
             ]

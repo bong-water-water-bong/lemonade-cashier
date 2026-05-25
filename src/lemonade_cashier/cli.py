@@ -32,9 +32,10 @@ BANNER = (
 )
 
 
-def _config_from_env() -> tuple[Path, Path, SupervisorConfig]:
+def _config_from_env() -> tuple[Path, Path, str, SupervisorConfig]:
     log_path = Path(os.environ.get("LC_EVENT_LOG", DEFAULT_EVENT_LOG))
     receipt_dir = Path(os.environ.get("LC_RECEIPT_DIR", DEFAULT_RECEIPT_DIR))
+    store_id = os.environ.get("LC_STORE_ID", "tie-dye-farms")
 
     tax_rate = to_money(os.environ.get("LC_TAX_RATE", "0.15"))
 
@@ -51,7 +52,7 @@ def _config_from_env() -> tuple[Path, Path, SupervisorConfig]:
         enabled=_env_bool("LC_FLM_ENABLED", default=False),
     )
     config = SupervisorConfig(tax_rate=tax_rate, lemonade=lemonade, flm=flm)
-    return log_path, receipt_dir, config
+    return log_path, receipt_dir, store_id, config
 
 
 def _env_bool(name: str, *, default: bool) -> bool:
@@ -62,9 +63,9 @@ def _env_bool(name: str, *, default: bool) -> bool:
 
 
 def main() -> None:  # pragma: no cover — interactive loop, exercised by smoke test
-    log_path, receipt_dir, config = _config_from_env()
+    log_path, receipt_dir, store_id, config = _config_from_env()
     initialize_database()
-    log = EventLog(log_path)
+    log = EventLog(log_path, store_id=store_id)
     supervisor = Supervisor(log, config)
 
     print(BANNER)
