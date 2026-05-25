@@ -55,6 +55,8 @@ def test_project_closed_transaction_preserves_native_log(event_log: EventLog):
     assert store_event["type"] == "cashier.transaction.closed"
     assert store_event["actor"] == {"kind": "attendant", "id": "alice"}
     assert store_event["payload"]["original_type"] == "transaction.close"
+    assert store_event["payload"]["original_prev"]
+    assert store_event["payload"]["original_hash"]
     assert store_event["payload"]["subtotal"] == native_state["subtotal"]
     assert store_event["payload"]["tax"] == native_state["tax"]
     assert store_event["payload"]["total"] == native_state["total"]

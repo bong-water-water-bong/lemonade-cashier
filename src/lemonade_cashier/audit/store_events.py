@@ -49,6 +49,7 @@ def _closed_transaction_event(
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "original_seq": event.seq,
+        "original_prev": event.prev,
         "original_hash": event.hash,
         "original_type": event.type,
         "opened_at": state.get("opened_at"),
