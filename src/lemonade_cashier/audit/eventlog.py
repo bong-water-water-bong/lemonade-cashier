@@ -21,13 +21,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import uuid
 from collections.abc import Iterable, Iterator
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 GENESIS_PREV = "0" * 64
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = "store.event.v1"
 
 
 @dataclass(frozen=True)
@@ -38,6 +39,19 @@ class Event:
     payload: dict[str, object]
     prev: str
     hash: str
+    # store.event.v1 alignment
+    event_id: str = ""
+    store_id: str = "tie-dye-farms"
+    department: str = "cashier"
+    source: str = "lemonade-cashier"
+    schema_version: str = SCHEMA_VERSION
+    actor: dict[str, str] = None  # type: ignore
+    requires_approval: bool = False
+    approved_by: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.actor is None:
+            object.__setattr__(self, "actor", {"kind": "attendant", "id": "unknown"})
 
     def to_json_line(self) -> str:
         # Preserve key order for stable hashing across implementations.
@@ -55,8 +69,9 @@ class EventLog:
     supported (one cashier process per till).
     """
 
-    def __init__(self, path: Path | str):
+    def __init__(self, path: Path | str, store_id: str = "tie-dye-farms"):
         self.path = Path(path)
+        self.store_id = store_id
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._last_seq, self._last_hash = self._scan_tail()
 
@@ -66,18 +81,31 @@ class EventLog:
         payload: dict[str, object],
         *,
         ts: str | None = None,
+        actor: dict[str, str] | None = None,
     ) -> Event:
         """Append a new event and return the resulting :class:`Event`."""
 
         seq = self._last_seq + 1
         timestamp = ts if ts is not None else _utc_now_iso()
         prev = self._last_hash if self._last_hash else GENESIS_PREV
+        event_id = f"evt-{uuid.uuid4().hex[:12]}"
+
+        actual_actor = actor if actor is not None else {"kind": "attendant", "id": "unknown"}
+
         body = {
             "seq": seq,
             "ts": timestamp,
             "type": event_type,
             "payload": payload,
             "prev": prev,
+            "event_id": event_id,
+            "store_id": self.store_id,
+            "department": "cashier",
+            "source": "lemonade-cashier",
+            "schema_version": SCHEMA_VERSION,
+            "actor": actual_actor,
+            "requires_approval": False,
+            "approved_by": None,
         }
         body_hash = _hash_body(body)
         event = Event(
@@ -87,6 +115,9 @@ class EventLog:
             payload=payload,
             prev=prev,
             hash=body_hash,
+            event_id=event_id,
+            store_id=self.store_id,
+            actor=actual_actor,
         )
         with self.path.open("a", encoding="utf-8") as fh:
             fh.write(event.to_json_line())
@@ -113,14 +144,7 @@ class EventLog:
                     raise EventLogError(f"malformed event at line {line_number}: {exc}") from exc
 
     def verify(self) -> None:
-        """Walk the chain and raise :class:`EventLogError` on tamper.
-
-        Also checks ``ts`` monotonicity: timestamps must be
-        non-decreasing along the chain. Without this, a backdated event
-        appended out-of-order would still pass the hash check (the hash
-        chain only covers the *content* of each event, not the relative
-        order of timestamps).
-        """
+        """Walk the chain and raise :class:`EventLogError` on tamper."""
 
         prev = GENESIS_PREV
         prev_ts = ""
@@ -129,15 +153,11 @@ class EventLog:
                 raise EventLogError(f"out-of-order seq: expected {index}, got {event.seq}")
             if event.prev != prev:
                 raise EventLogError(f"hash chain broken at seq {event.seq}")
-            expected_hash = _hash_body(
-                {
-                    "seq": event.seq,
-                    "ts": event.ts,
-                    "type": event.type,
-                    "payload": event.payload,
-                    "prev": event.prev,
-                }
-            )
+
+            body = asdict(event)
+            body.pop("hash")
+
+            expected_hash = _hash_body(body)
             if expected_hash != event.hash:
                 raise EventLogError(f"hash mismatch at seq {event.seq}")
             # ISO-8601 lex-compare is correct for monotonically

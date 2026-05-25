@@ -37,6 +37,9 @@ deliberate build order:
 > *Reliability before autonomy.*
 
 **→ [Project Wiki](docs/wiki/README.md)** — architecture, decisions, gotchas, and agent onboarding.
+The wiki is stored in `docs/wiki/`; read it before changing the core
+cashier flow, and update the relevant wiki page whenever a change alters
+architecture, audit behavior, agent handoff, or financial-core decisions.
 
 The deterministic financial core (everything up to "safety") runs with
 **Python standard library only**. Agents and AI-assisted parsing are
