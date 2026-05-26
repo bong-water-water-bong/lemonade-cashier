@@ -88,6 +88,21 @@ must be explicit, local, replayable, and separate from processor-backed
 payments. It must not silently bypass inventory, audit, tax, or policy
 rules.
 
+
+- Treat Karpathy's LLM Wiki pattern as governing law for durable agent memory: https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f. Update `docs/wiki/` whenever work reveals durable architecture, workflow, gotcha, or onboarding knowledge.
+
+## OpenSpec Department Standard
+
+Use `openspec/` for every department-level change before implementation:
+
+1. Create or update a change folder under `openspec/changes/<change-id>/`.
+2. Record the department, affected event types, approval gates, and repo boundaries.
+3. Keep `openspec/specs/cashier/spec.md` aligned with this repo, `lemonade-store`, and the shared department registry.
+4. Implementation work must reference the change `tasks.md` and update it as tasks complete.
+5. Archive completed changes only after checks and owner/review approval are recorded.
+
+This repo owns the `cashier` implementation. `lemonade-store` remains the suite-level source for the shared registry and cross-department contract.
+
 ## Definition of done for any change
 
 - `make test` passes.
@@ -119,3 +134,15 @@ rules.
 - Vision-as-arbiter-of-price.
 
 See `docs/SAFETY.md` and `docs/ARCHITECTURE.md` for the full rationale.
+
+## GitHub / OpenSpec / LLM Wiki Standard
+
+Treat Karpathy's LLM Wiki pattern as governing law for durable agent memory: https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f
+
+- `docs/wiki/` is the durable project memory for architecture, decisions, gotchas, and onboarding.
+- `AGENTS.md` is the agent instruction schema.
+- `openspec/` is the structured change/spec layer.
+- Start non-trivial work with `openspec/changes/<change-id>/proposal.md`.
+- Track implementation in `openspec/changes/<change-id>/tasks.md`.
+- Update `docs/wiki/` whenever work reveals durable repo knowledge future agents need.
+- Keep changes surgical, simple, and verified by repo-native checks.

@@ -28,3 +28,28 @@ Build a local-first, offline-capable cashier assistant with a deterministic fina
 - **No I/O in Core**: The financial core is pure; all side effects live in the audit/receipt layers.
 - **Timeout-First AI**: Any agent path must have a "Lemonade unreachable" test to ensure the UI never hangs on a model spinner.
 - **PIN Security**: Supervisor-level actions (voids, large refunds) require a PIN hashed with PBKDF2-SHA256.
+
+## OpenSpec Workflow
+
+Use `openspec/` as the working standard for department changes:
+
+- `openspec/project.md` defines this repo's department workflow.
+- `openspec/specs/cashier/spec.md` records the active contract for this department.
+- `openspec/changes/<change-id>/` holds proposal, design, and task files for active work.
+- GitHub issues and PRs must name affected event types and approval gates.
+
+Keep this repo aligned with `lemonade-store` when event contracts, owner approval gates, or department boundaries change.
+
+## LLM Wiki Standard
+
+This repo treats Andrej Karpathy's LLM Wiki pattern as the governing source for agent knowledge management: https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f
+
+For this project, that means:
+
+- `docs/wiki/` is the maintained project memory for architecture, decisions, gotchas, and onboarding.
+- `AGENTS.md` is the agent instruction schema.
+- `openspec/` is the structured change/spec layer.
+- Raw source material stays in docs, examples, tests, issue/PR discussions, and committed specs.
+- Agents must update the wiki when they learn durable repo knowledge that future agents need.
+
+Keep wiki entries concise, factual, and linked back to concrete files, specs, or test evidence.
