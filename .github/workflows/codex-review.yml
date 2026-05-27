@@ -13,7 +13,7 @@ jobs:
     name: Codex PR review
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -33,9 +33,13 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           python3 - <<'PYEOF'
-          import os, json, urllib.request, pathlib, subprocess
+          import os, json, urllib.request, pathlib, subprocess, sys
 
-          api_key = os.environ["OPENAI_API_KEY"]
+          api_key = os.environ.get("OPENAI_API_KEY")
+          if not api_key:
+              print("OPENAI_API_KEY is not set. Skipping review.")
+              sys.exit(0)
+
           diff = pathlib.Path("/tmp/pr.diff").read_text(errors="replace")
 
           prompt = (
