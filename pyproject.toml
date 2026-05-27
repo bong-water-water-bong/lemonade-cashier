@@ -22,7 +22,7 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
   "Topic :: Office/Business :: Financial :: Point-Of-Sale",
 ]
-dependencies = ["lemonade-agents>=0.1.0"]
+dependencies = ["lemonade-agents @ git+https://github.com/bong-water-water-bong/lemonade-agents@main"]
 
 [project.optional-dependencies]
 dev = [
