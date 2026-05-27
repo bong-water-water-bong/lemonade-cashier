@@ -34,9 +34,13 @@ jobs:
           GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           python3 - <<'PYEOF'
-          import os, json, urllib.request, pathlib, subprocess
+          import os, json, urllib.error, urllib.request, pathlib, subprocess, sys
 
-          api_key = os.environ["OPENHANDS_API_KEY"]
+          api_key = os.environ.get("OPENHANDS_API_KEY")
+          if not api_key:
+              print("OPENHANDS_API_KEY is not set. Skipping OpenHands review.")
+              sys.exit(0)
+
           diff = pathlib.Path("/tmp/pr.diff").read_text(errors="replace")
 
           prompt = (
@@ -60,8 +64,17 @@ jobs:
                   "Authorization": f"Bearer {api_key}",
               },
           )
-          with urllib.request.urlopen(req, timeout=60) as r:
-              data = json.load(r)
+          try:
+              with urllib.request.urlopen(req, timeout=60) as r:
+                  data = json.load(r)
+          except urllib.error.HTTPError as exc:
+              detail = exc.read().decode(errors="replace")
+              print(f"OpenHands review skipped: API returned HTTP {exc.code}.")
+              print(detail[:2000])
+              sys.exit(0)
+          except Exception as exc:
+              print(f"OpenHands review skipped: {exc}")
+              sys.exit(0)
 
           review = data["choices"][0]["message"]["content"]
           body = (
