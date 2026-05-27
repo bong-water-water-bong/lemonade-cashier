@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   review:
+    if: ${{ secrets.OPENAI_API_KEY != "" }}
     name: Codex PR review
     runs-on: ubuntu-latest
     steps:
@@ -29,11 +30,17 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
         run: |
           python3 - <<'PYEOF'
-          import os, json, urllib.request, pathlib, subprocess
+          import os, json, urllib.request, pathlib, subprocess, sys
 
-          api_key = os.environ["OPENAI_API_KEY"]
+          api_key = os.environ.get("OPENAI_API_KEY")
+          if not api_key:
+              print("OPENAI_API_KEY is not set. Skipping review.")
+              sys.exit(0)
+
           diff = pathlib.Path("/tmp/pr.diff").read_text(errors="replace")
 
           prompt = (
@@ -75,6 +82,3 @@ jobs:
               check=True,
           )
           PYEOF
-        env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          REPO: ${{ github.repository }}

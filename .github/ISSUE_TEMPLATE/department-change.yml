@@ -1,0 +1,36 @@
+name: Department change
+description: Propose a Lemonade department contract or workflow change
+title: "[cashier] "
+labels:
+  - department
+  - openspec
+body:
+  - type: input
+    id: department
+    attributes:
+      label: Department
+      value: cashier
+    validations:
+      required: true
+  - type: textarea
+    id: intent
+    attributes:
+      label: Intent
+      description: What needs to change and why?
+    validations:
+      required: true
+  - type: textarea
+    id: events
+    attributes:
+      label: Event contract impact
+      description: List consumed/emitted event types and registry impact.
+  - type: textarea
+    id: approval
+    attributes:
+      label: Approval gates
+      description: Public, financial, deploy, export, or publish approval needed?
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: Tests, docs, examples, or local-first/privacy checks required.
