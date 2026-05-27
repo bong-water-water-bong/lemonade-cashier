@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   review:
+    if: ${{ secrets.OPENAI_API_KEY != "" }}
     name: Codex PR review
     runs-on: ubuntu-latest
     steps:

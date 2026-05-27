@@ -15,7 +15,7 @@ jobs:
   pr_agent_job:
     name: PR-Agent (DeepSeek)
     runs-on: ubuntu-latest
-    if: ${{ github.event.sender.type != 'Bot' }}
+    if: ${{ github.event.sender.type != 'Bot' && secrets.DEEPSEEK_API_KEY != '' }}
     steps:
       - name: PR Agent review
         uses: the-pr-agent/pr-agent@main

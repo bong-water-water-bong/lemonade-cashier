@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   review:
+    if: ${{ secrets.GEMINI_API_KEY != "" }}
     name: Gemini Flash PR review
     runs-on: ubuntu-latest
     timeout-minutes: 10
