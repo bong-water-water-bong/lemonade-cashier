@@ -42,7 +42,7 @@ We follow a strict, layer-by-layer dependency build order. Reliability must be v
 
 - **Layer Sequence**: `inventory` ➔ `cart` ➔ `totals` ➔ `cash` ➔ `receipts` ➔ `audit` ➔ `replay` ➔ `CIT` ➔ `safety` ➔ `agents` ➔ `cameras` ➔ `speech` ➔ `sensor fusion`
 - **Reliability Before Autonomy**: Deterministic financial math and event chain logging must remain completely functional and validated even if external agents or ML-based sensor models are slow, fail, or are completely unreachable.
-- **Documentation**: Layer specifications and completion checklists are located in [BUILD_ORDER](../../BUILD_ORDER.md).
+- **Documentation**: Layer specifications and completion checklists are located in [BUILD_ORDER](../BUILD_ORDER.md).
 
 ## Related
 
@@ -50,4 +50,4 @@ We follow a strict, layer-by-layer dependency build order. Reliability must be v
 - [[architecture]] — high-level system view and event envelope
 - [[runbook]] — operational tasks and ports
 - [[agents]] — safety guidelines and PIN thresholds
-- [[../../BUILD_ORDER]] — build order specifications and completeness checklists
+- [BUILD_ORDER](../BUILD_ORDER.md) — build order specifications and completeness checklists

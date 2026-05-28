@@ -4,7 +4,7 @@
 
 ## Supervisor PIN Thresholds
 
-Supervisor-level operations (voids, refunds, discounts) require a PBKDF2-SHA256 hashed PIN authorization when transaction changes equal or exceed the following magnitudes defined in [policy.py](file:///home/bcloud/lemonade-cashier/src/lemonade_cashier/safety/policy.py):
+Supervisor-level operations (voids, refunds, discounts) require a PBKDF2-SHA256 hashed PIN authorization when transaction changes equal or exceed the following magnitudes defined in [policy.py](../../src/lemonade_cashier/safety/policy.py):
 
 - **Void Threshold**: `Decimal('10.00')` (`DEFAULT_VOID_PIN_THRESHOLD`)
 - **Refund Threshold**: `Decimal('5.00')` (`DEFAULT_REFUND_PIN_THRESHOLD`)
