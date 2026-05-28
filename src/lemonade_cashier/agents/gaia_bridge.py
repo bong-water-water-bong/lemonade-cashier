@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from typing import Any
 
 try:  # pragma: no cover — exercised only when GAIA is installed
-    import gaia as _gaia  # type: ignore[import-not-found]
+    import gaia as _gaia
 except ImportError:  # pragma: no cover — exercised by the default test env
     gaia: Any | None = None
 else:  # pragma: no cover — exercised only when GAIA is installed
