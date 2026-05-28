@@ -38,6 +38,6 @@ iPhone/scanner → sensors layer → deterministic parser → financial core →
 - `sensors.*` stubs return `None` until the vision pipeline is wired. Code consuming sensor output must handle `None`.
 
 ## Related
-- [[financial-core]] — the stdlib-only core in detail
-- [[audit-log]] — event sourcing, hash chaining, replay
-- [[agent-model]] — how agents fit in, delegation, identity
+- [financial-core](financial-core.md) — the stdlib-only core in detail
+- [audit-log](audit-log.md) — event sourcing, hash chaining, replay
+- [agent-model](agent-model.md) — how agents fit in, delegation, identity

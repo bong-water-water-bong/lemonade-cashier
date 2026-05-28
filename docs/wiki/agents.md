@@ -4,11 +4,11 @@
 
 ## Supervisor PIN Thresholds
 
-Supervisor-level operations (voids, refunds, discounts) require a PBKDF2-SHA256 hashed PIN authorization when transaction changes equal or exceed the following magnitudes defined in [policy.py](../../src/lemonade_cashier/safety/policy.py):
+Supervisor-level operations require a `PBKDF2-SHA256` hashed PIN authorization when transaction changes equal or exceed specific magnitudes. While default thresholds for voids, refunds, and discounts are defined in [policy.py](../../src/lemonade_cashier/safety/policy.py), their implementation status in the codebase differs:
 
-- **Void Threshold**: `Decimal('10.00')` (`DEFAULT_VOID_PIN_THRESHOLD`)
-- **Refund Threshold**: `Decimal('5.00')` (`DEFAULT_REFUND_PIN_THRESHOLD`)
-- **Discount Threshold**: `Decimal('3.00')` (`DEFAULT_DISCOUNT_PIN_THRESHOLD`)
+- **Void Threshold**: `Decimal('10.00')` (`DEFAULT_VOID_PIN_THRESHOLD`). Active and enforced via `_gate_void` in [supervisor.py](../../src/lemonade_cashier/agents/supervisor.py).
+- **Refund Threshold**: `Decimal('5.00')` (`DEFAULT_REFUND_PIN_THRESHOLD`). **Unused/Placeholder**: Refunds are not yet implemented in the cashier core or supervisor.
+- **Discount Threshold**: `Decimal('3.00')` (`DEFAULT_DISCOUNT_PIN_THRESHOLD`). **Unused/Placeholder**: Discounts are not yet implemented in the cashier core or supervisor.
 
 > [!IMPORTANT]
 > The thresholds compare the absolute *magnitude* of the changes. Downstream applications must normalize values via `abs()` to guarantee that sign-independent bypasses do not occur.
@@ -17,7 +17,9 @@ Supervisor-level operations (voids, refunds, discounts) require a PBKDF2-SHA256 
 
 ## Actor Permission States
 
-Authority is transactional and follows the JSON state, not the agent process. Permissions per role:
+Actor roles represent the serialized origin of actions recorded inside cart line metadata (see `Actor` literal in [cart.py](../../src/lemonade_cashier/core/cart.py)), tracking event authority within the append-only event log.
+
+Permissions per role:
 
 | Actor | Can add cart line? | Can void? | Can close transaction? |
 |---|---|---|---|
@@ -26,9 +28,11 @@ Authority is transactional and follows the JSON state, not the agent process. Pe
 | `agent_auto` | ✅ | ❌ | ❌ |
 | `customer` | ❌ | ❌ | ❌ |
 
-- **`agent_confirmed`**: LLM proposal, manually approved by attendant.
-- **`agent_auto`**: LLM proposal with confidence $\ge$ threshold, auto-applied.
-- **`customer`**: Self-service role, restricted from modifications.
+### Runtime Enforcement & Session Model
+- **Single Attendant Session**: In the current CLI prototype, the supervisor process runs in a linear CLI environment representing a single active `attendant`. As a result, role authority constraints are not dynamically enforced on incoming user text commands; `Supervisor.handle_text` in [supervisor.py](../../src/lemonade_cashier/agents/supervisor.py) executes command actions uniformly.
+- **`agent_auto`**: LLM proposals with a confidence score equal to or exceeding `CONFIDENCE_THRESHOLD = 0.8` (configured in [supervisor.py](../../src/lemonade_cashier/agents/supervisor.py)) are auto-applied directly.
+- **`agent_confirmed`**: LLM proposals with confidence below `0.8` are presented to the attendant for manual confirmation.
+- **`customer`**: A self-service placeholder role. While defined in [cart.py](../../src/lemonade_cashier/core/cart.py#L17), it is currently unused in transaction flows.
 
 ---
 
@@ -54,7 +58,7 @@ When contributing:
 
 ## Related
 
-- [[README]] — project wiki entry point
-- [[architecture]] — high-level system view and event envelope
-- [[conventions]] — coding style standards
-- [[runbook]] — commands and ports
+- [README](README.md) — project wiki entry point
+- [architecture](architecture.md) — high-level system view and event envelope
+- [conventions](conventions.md) — coding style standards
+- [runbook](runbook.md) — commands and ports

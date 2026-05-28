@@ -25,5 +25,5 @@ Each event is a JSON object appended to the log file. Each event includes a hash
 - Never delete or truncate the log to "fix" a problem. Replay from genesis is always possible and is the correct recovery path.
 
 ## Related
-- [[architecture]] — audit log in context
-- [[financial-core]] — produces the events the log stores
+- [architecture](architecture.md) — audit log in context
+- [financial-core](financial-core.md) — produces the events the log stores
