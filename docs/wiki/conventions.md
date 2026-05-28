@@ -50,4 +50,5 @@ We follow a strict, layer-by-layer dependency build order. Reliability must be v
 - [[architecture]] — high-level system view and event envelope
 - [[runbook]] — operational tasks and ports
 - [[agents]] — safety guidelines and PIN thresholds
-- [[../BUILD_ORDER]] — build order specifications and completeness checklists
+- [BUILD_ORDER](../BUILD_ORDER.md) — build order specifications and completeness checklists
+

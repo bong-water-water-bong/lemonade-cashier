@@ -19,12 +19,14 @@ from __future__ import annotations
 from decimal import ROUND_HALF_EVEN, Decimal, InvalidOperation, localcontext
 from typing import Final
 
+from .errors import CashierError
+
 Q_INTERNAL: Final = Decimal("0.0001")
 Q_DISPLAY: Final = Decimal("0.01")
 ZERO: Final = Decimal("0.00")
 
 
-class MoneyError(ValueError):
+class MoneyError(CashierError):
     """Raised when a value cannot be interpreted as money."""
 
 

@@ -4,7 +4,7 @@
 
 ## Local Commands & Makefile
 
-The project uses a standard [Makefile](file:///home/bcloud/lemonade-cashier/Makefile) for convenience task runners. Python 3.11+ is required.
+The project uses a standard [Makefile](../../Makefile) for convenience task runners. Python 3.11+ is required.
 
 ### Quality Verification
 ```bash
