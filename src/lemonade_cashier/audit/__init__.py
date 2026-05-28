@@ -1,1 +1,1 @@
-"""Audit: append-only event log, hash chain, replay, and receipts."""
+from __future__ import annotations

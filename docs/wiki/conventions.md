@@ -27,7 +27,7 @@
 
 ## Class Design & Data Models
 
-- **Immutable Dataclasses**: Dataclasses are the preferred container for structured configuration and contracts. Use `@dataclass(frozen=True)` to ensure immutability and thread safety.
+- **Immutable vs Mutable Dataclasses**: Immutable dataclasses (`@dataclass(frozen=True)`) are preferred for configurations and contract boundaries. However, core transactional models (such as `Cart` and `CartLine` in [cart.py](../../src/lemonade_cashier/core/cart.py)) are implemented as mutable dataclasses to support in-place cart mutation.
 - **Post-Init Validation**: Perform schema and value validation inside `__post_init__` to catch configuration bugs at construction time.
 
 ## Error Handling & Money
