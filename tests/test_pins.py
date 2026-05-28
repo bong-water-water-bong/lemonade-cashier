@@ -52,9 +52,9 @@ def test_actor_id_is_canonicalized(tmp_path: Path):
 
 def test_pin_never_appears_in_store(tmp_path: Path):
     store = tmp_path / "pins.json"
-    set_pin("alice", "0451", path=store)
+    set_pin("alice", "secret-pin", path=store)
     raw = store.read_text(encoding="utf-8")
-    assert "0451" not in raw
+    assert "secret-pin" not in raw
     # The store should look like a hex key + hex salt; no plaintext.
     data = json.loads(raw)
     entry = data["pins"]["alice"]
