@@ -10,4 +10,3 @@ from __future__ import annotations
 from .errors import CashierError
 
 __all__ = ["CashierError"]
-
