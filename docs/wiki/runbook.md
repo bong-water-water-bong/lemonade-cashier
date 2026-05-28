@@ -83,7 +83,7 @@ The local cashier stack relies on the following dedicated port numbers to preven
 |---|---|---|
 | **`13400`** | Embedded `lemond` | Port for the local subprocess daemon managed by [lemond_process.py](../../src/lemonade_cashier/integrations/lemond_process.py#L48). |
 | **`13305`** | System-wide `lemond` | Programmatic default server API port defined in [lemonade_client.py](../../src/lemonade_cashier/agents/lemonade_client.py#L74) (`LemonadeConfig.url`). |
-| **`8000`** | Dev server API | Fallback server address defined in [cli.py](../../src/lemonade_cashier/cli.py#L43). |
+| **`8000`** | Dev server API (historical) | Legacy/historical default API port referenced in agent stubs/comments. |
 | **`11434`** | Ollama / FastFlowLM | FastFlowLM port configured in [cli.py](../../src/lemonade_cashier/cli.py#L49) (`FLMConfig.url`). |
 
 ---

@@ -13,7 +13,7 @@ iPhone/scanner → sensors layer → deterministic parser → financial core →
                                    LLM agents (Lemonade/FLM/GAIA)
 ```
 
-**core/**: Stdlib-only. All money math, event sourcing, receipt projection. No I/O, no model calls, no filesystem writes. This boundary is enforced by Rule A.
+**core/**: Stdlib-only. All money math, event sourcing, receipt projection. Except for local catalog database/CSV initialization/queries in [inventory.py](../../src/lemonade_cashier/core/inventory.py), modules here perform no I/O, no model calls, and no filesystem writes. This boundary is enforced by Rule A.
 
 **agents/**: Fallback parsers only. `agents/parser.py` is the primary deterministic parser. LLM calls happen only when the deterministic path fails. Agents are never authoritative for SKU or price.
 

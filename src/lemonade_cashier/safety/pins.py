@@ -50,7 +50,8 @@ PROJECT_ROOT: Final = Path(__file__).resolve().parents[3]
 DEFAULT_PIN_STORE: Final = PROJECT_ROOT / "data" / "pins.json"
 
 # PBKDF2 iterations. 200_000 is the OWASP 2023 recommended minimum for
-# PBKDF2-SHA256. Bumping later is safe — the store records the count
+# PBKDF2-SHA256 (https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#pbkdf2).
+# Bumping later is safe — the store records the count
 # used per-entry so old entries still verify.
 DEFAULT_ITERATIONS: Final = 200_000
 SALT_BYTES: Final = 16
