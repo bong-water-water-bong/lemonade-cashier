@@ -21,7 +21,8 @@ iPhone/scanner → sensors layer → deterministic parser → financial core →
 
 **sensors/**: Hardware input stubs (`camera.py`, `speech.py`, `fusion.py`). Currently return `None`; will be wired to `lemonade-vision-server` HTTP API.
 
-**integrations/**: Lemonade, FastFlowLM, GAIA calls. All have 2-second hard timeouts. Network failures return `None` — never raise, never block.
+**integrations/**: Lemonade, FastFlowLM, GAIA calls. All have 2-second hard timeouts. Network failures return `None` — never raise, never block. Includes `lemond_process.py`, a subprocess manager for the local vendored `lemond` binary running on port 13400, configured via `scripts/setup_lemond.sh`.
+
 
 ## Key Decisions
 - **Why stdlib-only core**: Any third-party import in `core/` creates a failure mode that can corrupt financial data. The boundary is the only way to guarantee the core never breaks due to a dependency update.
