@@ -1,1 +1,1 @@
-"""Agents: rule-based parser, LLM fallback clients, and the supervisor."""
+from __future__ import annotations

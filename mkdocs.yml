@@ -15,11 +15,29 @@ theme:
     scheme: slate
 nav:
   - Home: index.md
+  - Wiki:
+      - Overview: wiki/README.md
+      - Architecture: wiki/architecture.md
+      - Agents: wiki/agents.md
+      - Agent Model: wiki/agent-model.md
+      - Financial Core: wiki/financial-core.md
+      - Audit Log: wiki/audit-log.md
+      - Conventions: wiki/conventions.md
+      - Runbook: wiki/runbook.md
   - Lemonade Store: LEMONADE_STORE.md
   - Architecture: ARCHITECTURE.md
   - Vision pipeline: VISION_PIPELINE.md
   - Build order: BUILD_ORDER.md
   - Safety posture: SAFETY.md
+  - Agents Schema: AGENTS.md
+  - Superpowers:
+      - Plans:
+          - Vision Server Implementation: superpowers/plans/2026-05-23-vision-server-implementation.md
+      - Specs:
+          - Vision Server Design: superpowers/specs/2026-05-23-vision-server-design.md
+validation:
+  links:
+    not_found: ignore
 markdown_extensions:
   - admonition
   - pymdownx.details

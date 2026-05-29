@@ -1,1 +1,1 @@
-"""Cross-cutting integrations: eval runner, fixtures, future MCP bridges."""
+from __future__ import annotations

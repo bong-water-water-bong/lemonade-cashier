@@ -40,8 +40,8 @@ def _config_from_env() -> tuple[Path, Path, str, SupervisorConfig]:
     tax_rate = to_money(os.environ.get("LC_TAX_RATE", "0.15"))
 
     lemonade = LemonadeConfig(
-        url=os.environ.get("LC_LEMONADE_URL", "http://127.0.0.1:8000"),
-        model=os.environ.get("LC_LEMONADE_MODEL", "Qwen3-4B-GGUF"),
+        url=os.environ.get("LC_LEMONADE_URL", "http://127.0.0.1:13305"),
+        model=os.environ.get("LC_LEMONADE_MODEL", "granite-3.3-2b-instruct-GGUF-Q4_K_M"),
         timeout_sec=float(os.environ.get("LC_LEMONADE_TIMEOUT_SEC", "2.0")),
         enabled=_env_bool("LC_LEMONADE_ENABLED", default=False),
     )

@@ -12,8 +12,7 @@ jobs:
       contents: read
     steps:
       - name: Qodo Merge Review
-        uses: qodo-ai/qodo-merge@v1
+        uses: qodo-ai/pr-agent@main
         env:
           QODO_API_KEY: ${{ secrets.QODO_API_KEY }}
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

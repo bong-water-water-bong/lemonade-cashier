@@ -45,7 +45,7 @@ class Event:
     department: str = "cashier"
     source: str = "lemonade-cashier"
     schema_version: str = SCHEMA_VERSION
-    actor: dict[str, str] = None  # type: ignore
+    actor: dict[str, str] | None = None
     requires_approval: bool = False
     approved_by: str | None = None
 

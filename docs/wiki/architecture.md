@@ -13,7 +13,7 @@ iPhone/scanner → sensors layer → deterministic parser → financial core →
                                    LLM agents (Lemonade/FLM/GAIA)
 ```
 
-**core/**: Stdlib-only. All money math, event sourcing, receipt projection. No I/O, no model calls, no filesystem writes. This boundary is enforced by Rule A.
+**core/**: Stdlib-only. All money math, event sourcing, receipt projection. Except for local catalog database/CSV initialization/queries in [inventory.py](../../src/lemonade_cashier/core/inventory.py), modules here perform no I/O, no model calls, and no filesystem writes. This boundary is enforced by Rule A.
 
 **agents/**: Fallback parsers only. `agents/parser.py` is the primary deterministic parser. LLM calls happen only when the deterministic path fails. Agents are never authoritative for SKU or price.
 
@@ -21,7 +21,8 @@ iPhone/scanner → sensors layer → deterministic parser → financial core →
 
 **sensors/**: Hardware input stubs (`camera.py`, `speech.py`, `fusion.py`). Currently return `None`; will be wired to `lemonade-vision-server` HTTP API.
 
-**integrations/**: Lemonade, FastFlowLM, GAIA calls. All have 2-second hard timeouts. Network failures return `None` — never raise, never block.
+**integrations/**: Lemonade, FastFlowLM, GAIA calls. All have 2-second hard timeouts. Network failures return `None` — never raise, never block. Includes `lemond_process.py`, a subprocess manager for the local vendored `lemond` binary running on port 13400, configured via `scripts/setup_lemond.sh`.
+
 
 ## Key Decisions
 - **Why stdlib-only core**: Any third-party import in `core/` creates a failure mode that can corrupt financial data. The boundary is the only way to guarantee the core never breaks due to a dependency update.
@@ -37,6 +38,6 @@ iPhone/scanner → sensors layer → deterministic parser → financial core →
 - `sensors.*` stubs return `None` until the vision pipeline is wired. Code consuming sensor output must handle `None`.
 
 ## Related
-- [[financial-core]] — the stdlib-only core in detail
-- [[audit-log]] — event sourcing, hash chaining, replay
-- [[agent-model]] — how agents fit in, delegation, identity
+- [financial-core](financial-core.md) — the stdlib-only core in detail
+- [audit-log](audit-log.md) — event sourcing, hash chaining, replay
+- [agent-model](agent-model.md) — how agents fit in, delegation, identity

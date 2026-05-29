@@ -26,5 +26,5 @@ Agent identity and delegation are tracked per-session for audit purposes. Each a
 - Agent responses for price are advisory only. The operator must confirm before a non-catalog price is accepted.
 
 ## Related
-- [[architecture]] — agents in the full system context
-- [[financial-core]] — the deterministic layer agents augment
+- [architecture](architecture.md) — agents in the full system context
+- [financial-core](financial-core.md) — the deterministic layer agents augment

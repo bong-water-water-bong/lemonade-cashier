@@ -12,13 +12,14 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Literal
 
+from .errors import CashierError
 from .money import ZERO, money_str, multiply, to_money
 
 Actor = Literal["attendant", "agent_auto", "agent_confirmed", "customer"]
 Source = Literal["typed", "alias", "fuzzy", "model_proposed", "scanned"]
 
 
-class PriceMismatchError(ValueError):
+class PriceMismatchError(CashierError):
     """Raised when :meth:`Cart.add` tries to merge a SKU at a different price."""
 
 
