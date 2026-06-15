@@ -8,6 +8,12 @@ The project uses a standard [Makefile](../../Makefile) for convenience task runn
 
 ### Quality Verification
 ```bash
+# Create .venv and install deterministic cashier/dev tooling
+make install
+
+# Optional: install local Lemonade SDK / GAIA agent bridge packages
+make install-agents
+
 # Run lint, type check, and tests in sequence
 make all
 
@@ -72,6 +78,16 @@ The following variables are documented as future design policies from [AGENTS.md
 - `LC_RISK_BLOCK` (default: `0.7`): Intended threshold to block closing high-risk transactions. (Note: PIN checks gate on line-item currency magnitude, not risk score).
 - `LC_CIT_TWO_PERSON_THRESHOLD` (default: `200.00`): Cash-in-transit witness threshold is currently hardcoded as `DEFAULT_TWO_PERSON_THRESHOLD = Decimal("200.00")` in [cit.py](../../src/lemonade_cashier/safety/cit.py) without environment overrides.
 - `LC_RUN_LIVE_MODEL` (default: `0`): Benchmarking toggle for live LLM execution.
+
+---
+
+## Runtime Boundary
+
+The base install must remain usable with no model service available.
+`make install-agents` is the only documented path that brings in the
+external `lemonade-agents` bridge and its GAIA dependency stack. Keep
+checkout, receipts, replay, and CIT commands operational with only the
+base install.
 
 ---
 

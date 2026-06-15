@@ -11,6 +11,17 @@ Build a local-first, offline-capable cashier assistant with a deterministic fina
 - **Agent Supervisor**: A multi-agent layer wraps the deterministic commands. In the current CLI prototype, agents propose events, but final authorization is processed under a single attendant session authority (see [agents.md](agents.md)). High-confidence agent proposals (confidence $\ge 0.8$) are auto-applied directly.
 - **Graceful Fallback**: Optional AI-assisted parsing (via Lemonade Server or FastFlowLM) degrades to rule-based parsing if the models are unreachable.
 
+## Runtime Setup
+
+- `make install` creates a local `.venv` and installs the cashier without
+  GAIA/model runtime packages.
+- `make install-agents` is the explicit opt-in path for the
+  `lemonade-agents` bridge when local Lemonade SDK / GAIA services are
+  running.
+- The cashier can use local `lemond` and FastFlowLM as fallback parsers,
+  but the deterministic checkout, receipt, replay, and CIT paths remain
+  usable when all model services are offline.
+
 ## Agent Handoff
 - **How to Test**: 
     - `make test`: Runs the full unit test suite.

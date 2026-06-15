@@ -3,7 +3,7 @@
 [![ci](https://github.com/bong-water-water-bong/lemonade-cashier/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/bong-water-water-bong/lemonade-cashier/actions/workflows/ci.yml)
 [![docs](https://github.com/bong-water-water-bong/lemonade-cashier/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/bong-water-water-bong/lemonade-cashier/actions/workflows/docs.yml)
 [![codeql](https://github.com/bong-water-water-bong/lemonade-cashier/actions/workflows/codeql.yml/badge.svg)](https://github.com/bong-water-water-bong/lemonade-cashier/actions/workflows/codeql.yml)
-[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)](https://github.com/bong-water-water-bong/lemonade-cashier/blob/main/pyproject.toml)
+[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue)](https://github.com/bong-water-water-bong/lemonade-cashier/blob/main/pyproject.toml)
 [![Lemonade SDK app](https://img.shields.io/badge/Lemonade%20SDK-app-ffd34d)](https://github.com/lemonade-sdk/lemonade)
 [![local-first](https://img.shields.io/badge/local--first-offline%20cashier-2ea44f)](#lemonade-cashier)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -46,6 +46,20 @@ The deterministic financial core (everything up to "safety") runs with
 optional and only consulted as a *fallback* — if Lemonade Server or
 FastFlowLM is unreachable, the cashier degrades gracefully to its
 rule-based primary path.
+
+## Suite runtime boundary
+
+- `make install` installs the local deterministic cashier package and
+  development tools only. It does not install GAIA, Torch, or model
+  runtime packages.
+- `make install-agents` is the explicit opt-in path for the
+  `lemonade-agents` bridge when the workstation is running local
+  Lemonade SDK / GAIA services.
+- `lemond` is local-only. The system-wide Lemonade App owns port
+  `13305`; the cashier's embedded helper uses its own local subprocess
+  boundary and never becomes the suite runtime authority.
+- A sale, receipt, replay, CIT event, or till close must still work when
+  every model service is offline.
 
 ---
 

@@ -34,7 +34,9 @@ iPhone/scanner → sensors layer → deterministic parser → financial core →
 ## Gotchas
 - `float` anywhere in money math is a bug. This boundary is enforced by code review, not by CI tooling — the linter does not restrict imports per-directory. Don't rely on automation to catch it.
 - Adding a new event type without replay coverage will break `audit/replay.py` — always add replay test first (TDD).
-- GAIA calls require the GAIA desktop to be running locally. In tests, mock at `agents/gaia_bridge.py` — not inside `core/`, not at `integrations/gaia.py` (that path does not exist).
+- GAIA/Lemonade SDK calls require local model services and the optional
+  `lemonade-agents` bridge. In tests, mock at the agent bridge boundary,
+  not inside `core/`.
 - `sensors.*` stubs return `None` until the vision pipeline is wired. Code consuming sensor output must handle `None`.
 
 ## Related
