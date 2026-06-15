@@ -30,6 +30,7 @@ Build a local-first, offline-capable cashier assistant with a deterministic fina
 - **Pure Domain Boundary**: Financial math remains free of network dependency. While the catalog database is read in `inventory.py`, all core cart mutations are side-effect-free.
 - **Timeout-First AI**: All AI/LLM client operations have a hard 2.0s timeout. Handled and verified in tests like [test_supervisor.py](../../tests/test_supervisor.py) (e.g. `test_supervisor_unreachable_writes_proposal`).
 - **PIN Security**: Supervisor actions require a PIN hashed with `PBKDF2-HMAC-SHA256` using 200,000 iterations (conforming to the [OWASP Cheat Sheet Series minimum](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#pbkdf2)) as implemented in [pins.py](../../src/lemonade_cashier/safety/pins.py).
+- **Packaging Boundary**: The base `lemonade-cashier` package has no runtime dependencies. External agent bridge packages such as `lemonade-agents`, GAIA, and Torch belong behind the optional `agents` extra so `make install` and deterministic tests stay lightweight. The Makefile creates `.venv` for local development and prefers it for checks when present.
 
 ## OpenSpec Workflow
 
@@ -68,4 +69,3 @@ Keep wiki entries concise, factual, and linked back to concrete files, specs, or
 - [agent-model](agent-model.md) — Conceptual model of fallback parsers, live inference logs, and delegation tracking.
 - [financial-core](financial-core.md) — Deterministic, stdlib-only financial calculation ring details.
 - [audit-log](audit-log.md) — Append-only, hash-chained JSONL event logging and projection replaying.
-

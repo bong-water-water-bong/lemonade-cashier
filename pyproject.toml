@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lemonade-cashier"
-version = "0.1.0"
+version = "1.5.0"
 description = "Local-first cashier assistant with deterministic financial core, audit/replay, and offline AI agents (Strix Halo + Lemonade + GAIA)."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -20,11 +20,15 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Topic :: Office/Business :: Financial :: Point-Of-Sale",
 ]
-dependencies = ["lemonade-agents @ git+https://github.com/bong-water-water-bong/lemonade-agents@main"]
+dependencies = []
 
 [project.optional-dependencies]
+agents = [
+  "lemonade-agents @ git+https://github.com/bong-water-water-bong/lemonade-agents@main",
+]
 dev = [
   "pytest>=8",
   "pytest-cov>=5",

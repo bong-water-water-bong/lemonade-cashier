@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-06-15
+
+### Changed
+
+- Marked the repository metadata as the Phase 1.5 release described in
+  the README.
+- Moved `lemonade-agents` behind the optional `agents` extra so the
+  base cashier and deterministic test environment do not install
+  GAIA/Torch dependencies by default.
+
 ## [0.1.0] - 2026-05-19
 
 ### Added

@@ -1,15 +1,18 @@
 # Lemonade Cashier — convenience targets.
 # All targets work with plain Python; no virtualenv required for the core.
 
-PYTHON ?= python3
+VENV_PYTHON := .venv/bin/python
+PYTHON ?= $(if $(wildcard $(VENV_PYTHON)),$(VENV_PYTHON),python3)
 
-.PHONY: all help install test test-cov lint type fmt run seed replay clean lemond-setup lemond-start lemond-stop
+.PHONY: all help venv install install-agents test test-cov lint type fmt run seed replay clean lemond-setup lemond-start lemond-stop
 
 all: lint type test
 
 help:
 	@echo "Targets:"
+	@echo "  make venv          Create .venv with python3"
 	@echo "  make install       Install the package (editable) with dev extras"
+	@echo "  make install-agents Install optional external agent bridge packages"
 	@echo "  make test          Run the test suite"
 	@echo "  make test-cov      Run tests with coverage"
 	@echo "  make lint          Run ruff"
@@ -23,8 +26,14 @@ help:
 	@echo "  make lemond-stop   Stop the embedded lemond"
 	@echo "  make clean         Remove build artifacts and caches"
 
-install:
-	$(PYTHON) -m pip install -e ".[dev]"
+venv:
+	python3 -m venv .venv
+
+install: venv
+	$(VENV_PYTHON) -m pip install -e ".[dev]"
+
+install-agents: venv
+	$(VENV_PYTHON) -m pip install -e ".[agents]"
 
 test:
 	$(PYTHON) -m pytest

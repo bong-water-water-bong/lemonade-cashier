@@ -2,7 +2,7 @@
 
 [![ci](https://github.com/bong-water-water-bong/lemonade-cashier/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/bong-water-water-bong/lemonade-cashier/actions/workflows/ci.yml)
 [![docs](https://github.com/bong-water-water-bong/lemonade-cashier/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/bong-water-water-bong/lemonade-cashier/actions/workflows/docs.yml)
-[![codeql](https://github.com/bong-water-water-bong/lemonade-cashier/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/bong-water-water-bong/lemonade-cashier/actions/workflows/codeql.yml)
+[![codeql](https://github.com/bong-water-water-bong/lemonade-cashier/actions/workflows/codeql.yml/badge.svg)](https://github.com/bong-water-water-bong/lemonade-cashier/actions/workflows/codeql.yml)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)](https://github.com/bong-water-water-bong/lemonade-cashier/blob/main/pyproject.toml)
 [![Lemonade SDK app](https://img.shields.io/badge/Lemonade%20SDK-app-ffd34d)](https://github.com/lemonade-sdk/lemonade)
 [![local-first](https://img.shields.io/badge/local--first-offline%20cashier-2ea44f)](#lemonade-cashier)
@@ -128,8 +128,12 @@ any laptop with Python 3.11+.
 git clone https://github.com/bong-water-water-bong/lemonade-cashier.git
 cd lemonade-cashier
 
-# Optional: editable install with dev extras (pytest, ruff, mypy)
+# Optional: editable install with dev extras (pytest, ruff, mypy).
+# This stays lightweight; local Lemonade/FastFlowLM clients use stdlib HTTP.
 make install
+
+# Optional: install external agent bridge packages such as lemonade-agents.
+make install-agents
 
 # Seed the local product database from data/sample_products.csv
 make seed
