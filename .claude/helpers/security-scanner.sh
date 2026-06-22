@@ -94,17 +94,18 @@ run_scan() {
     "total": $total_issues
   },
   "cves": {
-    "tracked": ["CVE-1", "CVE-2", "CVE-3"],
-    "remediated": 3
+    "tracked": [],
+    "remediated": 0,
+    "_note": "cve tracking not yet implemented — placeholder"
   }
 }
 EOF
 
   # Update main audit status file
   if [ "$status" = "clean" ]; then
-    echo '{"status":"CLEAN","cvesFixed":3}' > "$SECURITY_DIR/audit-status.json"
+    echo '{"status":"CLEAN","cvesFixed":0,"_note":"placeholder"}' > "$SECURITY_DIR/audit-status.json"
   else
-    echo "{\"status\":\"$status\",\"cvesFixed\":3,\"issues\":$total_issues}" > "$SECURITY_DIR/audit-status.json"
+    echo "{\"status\":\"$status\",\"cvesFixed\":0,\"issues\":$total_issues,\"_note\":\"placeholder\"}" > "$SECURITY_DIR/audit-status.json"
   fi
 
   echo "[$(date +%H:%M:%S)] ✓ Security: $status | Secrets: $secrets | Vulns: $vulns | NPM: $npm_vulns"

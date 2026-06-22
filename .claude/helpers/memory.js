@@ -16,7 +16,7 @@ function loadMemory() {
       return JSON.parse(fs.readFileSync(MEMORY_FILE, 'utf-8'));
     }
   } catch (e) {
-    // Ignore
+    console.error(`[memory] Failed to load memory from ${MEMORY_FILE}: ${e.message}`);
   }
   return {};
 }

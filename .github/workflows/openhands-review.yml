@@ -27,11 +27,30 @@ jobs:
             --repo "${{ github.repository }}" \
             | head -c 51200 > /tmp/pr.diff
 
+      - name: Sanitize diff (strip secrets-like patterns before AI review)
+        run: |
+          python3 -c "
+          import re, pathlib
+          diff = pathlib.Path('/tmp/pr.diff').read_text(errors='replace')
+          patterns = [
+              (r'(?i)(api[_-]?key|secret|token|password|auth[_-]?token|access[_-]?key)\s*[:=]\s*[\"'\\'']?[A-Za-z0-9+/=_\-.]+[\"'\\'']?', r'\\1=***REDACTED***'),
+              (r'(?i)(?:mongodb|postgres|mysql|redis|jdbc)://[^\s]+', '***REDACTED_CONNECTION_STRING***'),
+              (r'(?i)sk-[A-Za-z0-9]{20,}', 'sk-***REDACTED***'),
+              (r'(?i)ghp_[A-Za-z0-9]{20,}', 'ghp_***REDACTED***'),
+              (r'(?i)AKIA[0-9A-Z]{16}', 'AKIA***REDACTED***'),
+          ]
+          for pattern, replacement in patterns:
+              diff = re.sub(pattern, replacement, diff)
+          pathlib.Path('/tmp/pr.diff').write_text(diff)
+          print('Diff sanitized before AI review')
+          "
+
       - name: Review with OpenHands
         env:
           OPENHANDS_API_KEY: ${{ secrets.OPENHANDS_API_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
         run: |
           python3 - <<'PYEOF'
           import os, json, urllib.error, urllib.request, pathlib, subprocess, sys
@@ -65,7 +84,7 @@ jobs:
               },
           )
           try:
-              with urllib.request.urlopen(req, timeout=60) as r:
+              with urllib.request.urlopen(req, timeout=120) as r:
                   data = json.load(r)
           except urllib.error.HTTPError as exc:
               detail = exc.read().decode(errors="replace")
@@ -84,12 +103,9 @@ jobs:
 
           subprocess.run(
               ["gh", "pr", "comment",
-               str(os.environ.get("GITHUB_PR_NUMBER") or
-                   os.environ["GITHUB_REF"].split("/")[-2]),
-               "--repo", os.environ["GITHUB_REPOSITORY"],
+               os.environ["PR_NUMBER"],
+               "--repo", os.environ["REPO"],
                "--body", body],
               check=True,
           )
           PYEOF
-        env:
-          GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
