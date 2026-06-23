@@ -70,6 +70,9 @@ vendor/lemonade/lemonade
 .lemonade-cashier/
 .superpowers/
 
+# Claude Code agent session state (must not be committed)
+.claude/memory.db
+
 # Ruflo runtime (generated, not for git)
 .claude-flow/data/
 .claude-flow/logs/
