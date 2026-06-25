@@ -27,7 +27,7 @@ dependencies = []
 
 [project.optional-dependencies]
 agents = [
-  "lemonade-agents @ git+https://github.com/bong-water-water-bong/lemonade-agents@main",
+  "lemonade-agents>=0.1.0",
 ]
 dev = [
   "pytest>=8",
