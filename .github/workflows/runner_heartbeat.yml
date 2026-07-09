@@ -1,0 +1,50 @@
+name: Runner Heartbeat
+
+on:
+  schedule:
+    - cron: "0 1 * * 1"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      runners: ${{ steps.load.outputs.runners }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .github/runners.json
+          sparse-checkout-cone-mode: false
+      - id: load
+        run: |
+          runners=$(jq -c '.runners' .github/runners.json)
+          echo "runners=$runners" >> "$GITHUB_OUTPUT"
+
+  heartbeat:
+    needs: setup
+    strategy:
+      matrix:
+        runner: ${{ fromJSON(needs.setup.outputs.runners) }}
+      fail-fast: false
+    runs-on: [self-hosted, "${{ matrix.runner }}", lemon-prod]
+    timeout-minutes: 10
+    steps:
+      - name: Create heartbeat file (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          "$(Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')" | Out-File -FilePath "heartbeat-${{ matrix.runner }}.txt" -Encoding utf8
+      - name: Create heartbeat file (Linux/macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: echo "$(date -u -Iseconds)" > "heartbeat-${{ matrix.runner }}.txt"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: heartbeat-${{ matrix.runner }}
+          path: heartbeat-${{ matrix.runner }}.txt
+          retention-days: 30

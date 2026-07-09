@@ -1,0 +1,110 @@
+name: Monitor Self-Hosted Runners
+
+on:
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+    inputs:
+      stale_hours:
+        description: "Alert if newest heartbeat is older than this many hours"
+        required: false
+        default: "192"
+      lookback_days:
+        description: "Scan window in days"
+        required: false
+        default: "30"
+
+permissions:
+  actions: read
+  contents: read
+
+env:
+  HEARTBEAT_WORKFLOW: runner_heartbeat.yml
+  STALE_HOURS: ${{ github.event.inputs.stale_hours || '192' }}
+  LOOKBACK_DAYS: ${{ github.event.inputs.lookback_days || '30' }}
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/runners.json
+          sparse-checkout-cone-mode: false
+
+      - name: Validate inputs
+        run: |
+          for var in STALE_HOURS LOOKBACK_DAYS; do
+            val="${!var}"
+            if ! [[ "$val" =~ ^[1-9][0-9]*$ ]]; then echo "ERROR: $var must be positive integer, got '$val'" >&2; exit 1; fi
+          done
+          [ "$LOOKBACK_DAYS" -le 365 ] || { echo "ERROR: lookback_days must be <= 365" >&2; exit 1; }
+
+      - name: Load runners
+        run: jq -r '.runners[]' .github/runners.json > expected_runners.txt
+
+      - name: Fetch recent heartbeat artifacts
+        id: heartbeats
+        run: |
+          since=$(date -u -d "-${LOOKBACK_DAYS} days" +%Y-%m-%d)
+          gh api --paginate \
+            "repos/${{ github.repository }}/actions/workflows/${HEARTBEAT_WORKFLOW}/runs?status=completed&created=>=${since}&per_page=100" \
+            --jq '.workflow_runs[] | {id, run_started_at, event}' > heartbeat_runs.ndjson
+          [ -s heartbeat_runs.ndjson ] || { echo "ERROR: No completed runs found." >&2; exit 1; }
+          echo "latest_run_id=$(head -1 heartbeat_runs.ndjson | jq -r '.id')" >> "$GITHUB_OUTPUT"
+          echo "latest_run_started=$(head -1 heartbeat_runs.ndjson | jq -r '.run_started_at')" >> "$GITHUB_OUTPUT"
+          : > heartbeat_artifacts.ndjson
+          while IFS= read -r line; do
+            gh api --paginate "repos/${{ github.repository }}/actions/runs/$(echo "$line" | jq -r '.id')/artifacts" \
+              --jq '.artifacts[] | {name, updated_at, expired}' >> heartbeat_artifacts.ndjson
+          done < heartbeat_runs.ndjson
+
+      - name: Fetch runner status
+        continue-on-error: true
+        run: |
+          : > runner_status.ndjson
+          gh api --paginate "repos/${{ github.repository }}/actions/runners" \
+            --jq '.runners[] | {name, status, busy}' > runner_status.ndjson 2>/dev/null || true
+
+      - name: Evaluate
+        id: evaluate
+        run: |
+          now=$(date -u +%s); stale=$(( STALE_HOURS * 3600 ))
+          missing=(); stale_list=(); offline=(); ok=()
+          while IFS= read -r runner; do
+            [ -z "$runner" ] && continue
+            artifact=$(jq -sc --arg n "heartbeat-$runner" '[.[] | select(.name == $n and .expired == false)] | sort_by(.updated_at) | last // empty' heartbeat_artifacts.ndjson)
+            if [ -z "$artifact" ]; then missing+=("$runner"); age=999999
+            else
+              epoch=$(date -u -d "$(echo "$artifact" | jq -r '.updated_at')" +%s); age=$(( now - epoch ))
+              [ "$age" -gt "$stale" ] && stale_list+=("$runner ($(( age / 3600 ))h)")
+            fi
+            status=$(jq -c --arg n "$runner" 'select(.name == $n)' runner_status.ndjson | head -1)
+            [ -n "$status" ] && [ "$(echo "$status" | jq -r '.status')" != "online" ] && offline+=("$runner")
+            [ -n "$artifact" ] && [ "$age" -le "$stale" ] && ok+=("$runner")
+          done < expected_runners.txt
+          bad=$(( ${#missing[@]} + ${#stale_list[@]} ))
+          echo "bad_count=$bad" >> "$GITHUB_OUTPUT"
+          { echo "OK: ${#ok[@]}"; echo "Missing: ${#missing[@]}"; echo "Stale: ${#stale_list[@]}"; echo "Offline: ${#offline[@]}"; } > report.txt
+          echo "report<<EOF" >> "$GITHUB_OUTPUT"; cat report.txt >> "$GITHUB_OUTPUT"; echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "## Self-Hosted Runner Monitor" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"; cat report.txt >> "$GITHUB_STEP_SUMMARY"; echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail on bad heartbeat
+        if: steps.evaluate.outputs.bad_count != '0'
+        run: echo "Runner heartbeat failure"; exit 1
+
+      - name: Teams alert
+        if: failure() && env.TEAMS_WEBHOOK_URL != ''
+        env:
+          REPORT: ${{ steps.evaluate.outputs.report || '(no report)' }}
+        run: |
+          payload=$(jq -n --arg r "$REPORT" '{
+            type:"AdaptiveCard",version:"1.3",
+            body:[{type:"TextBlock",text:"⚠️ Self-hosted Runner Alert",weight:"bolder",size:"medium",color:"attention"},
+                  {type:"TextBlock",text:"Heartbeat check failed.",wrap:true},
+                  {type:"TextBlock",text:$r,wrap:true,fontType:"monospace"}]}')
+          curl -s -w "\nHTTP %{http_code}" -X POST -H "Content-Type: application/json" -d "$payload" "$TEAMS_WEBHOOK_URL"

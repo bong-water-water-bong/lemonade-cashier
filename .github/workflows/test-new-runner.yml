@@ -1,0 +1,25 @@
+name: Test New Runner
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: 'Runner to use'
+        required: true
+        type: choice
+        options: [test]
+        default: test
+
+jobs:
+  test-runner:
+    runs-on: ${{ inputs.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show runner info
+        run: |
+          echo "Runner: ${{ runner.name }}"
+          echo "OS: ${{ runner.os }}"
+          echo "Arch: ${{ runner.arch }}"
+          hostname; uname -a; python3 --version 2>/dev/null || python --version 2>/dev/null
