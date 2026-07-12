@@ -29,6 +29,11 @@ class CartLine:
 
     ``confidence`` is the matching confidence (0.0-1.0). For typed
     attendant entries that exactly match a SKU name, this is 1.0.
+
+    ``tax_rate`` is the VAT rate applied to this line. When ``None``,
+    the supervisor's global rate is used. Set to a specific
+    :class:`Decimal` for multi-rate VAT scenarios (e.g. zero-rated
+    essentials vs standard-rated goods).
     """
 
     sku: str
@@ -39,21 +44,41 @@ class CartLine:
     actor: Actor = "attendant"
     source: Source = "typed"
     confidence: float = 1.0
+    tax_rate: Decimal | None = None
 
     def __post_init__(self) -> None:
         if self.quantity < 1:
             raise ValueError("quantity must be >= 1")
         if not 0.0 <= self.confidence <= 1.0:
             raise ValueError("confidence must be in [0, 1]")
-        # to_money rejects floats, which is the invariant we want.
         self.unit_price = to_money(self.unit_price)
+        if self.tax_rate is not None:
+            self.tax_rate = to_money(self.tax_rate)
 
     @property
     def line_total(self) -> Decimal:
         return multiply(self.unit_price, self.quantity)
 
+    def vat_amount(self, default_rate: Decimal | None = None) -> Decimal | None:
+        """VAT for this line, or None if the line is not taxable."""
+        if not self.taxable:
+            return None
+        rate = self.tax_rate if self.tax_rate is not None else default_rate
+        if rate is None:
+            return None
+        return multiply(self.line_total, rate)
+
+    def vat_rate_display(self, default_rate: Decimal | None = None) -> str | None:
+        """Human-readable VAT rate (e.g. '15%'), or None if not taxable."""
+        if not self.taxable:
+            return None
+        rate = self.tax_rate if self.tax_rate is not None else default_rate
+        if rate is None:
+            return None
+        return f"{int(rate * 100)}%"
+
     def to_state(self) -> dict[str, object]:
-        return {
+        state: dict[str, object] = {
             "sku": self.sku,
             "name": self.name,
             "quantity": self.quantity,
@@ -64,6 +89,13 @@ class CartLine:
             "source": self.source,
             "confidence": self.confidence,
         }
+        if self.tax_rate is not None:
+            state["vat_rate"] = self.vat_rate_display()
+        if self.taxable:
+            vat = self.vat_amount()
+            if vat is not None:
+                state["vat_amount"] = money_str(vat)
+        return state
 
 
 @dataclass

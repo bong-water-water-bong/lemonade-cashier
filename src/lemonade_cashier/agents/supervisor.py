@@ -278,6 +278,7 @@ class Supervisor:
             actor=actor,  # type: ignore[arg-type]
             source=source,  # type: ignore[arg-type]
             confidence=match.confidence,
+            tax_rate=self.config.tax_rate,
         )
         self.cart.add(line)
         # Only stamp delegation_id when the model was actually used to
