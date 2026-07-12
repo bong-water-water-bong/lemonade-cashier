@@ -11,10 +11,11 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ..core.money import money_str
+from ..core.money import ZERO, money_str, to_money
 
 if TYPE_CHECKING:  # avoid a runtime circular import
     from .replay import ReplayState
@@ -85,6 +86,13 @@ def _render_text(state: dict[str, object]) -> str:
             spaces = max(1, LINE_WIDTH - len(left) - len(right))
             lines.append(left + (" " * spaces) + right)
 
+            # Per-line VAT breakdown (when taxable and rate is known)
+            if item.get("taxable") and item.get("vat_rate"):
+                vat_rate = str(item["vat_rate"])
+                vat_amount = str(item.get("vat_amount", "0.00"))
+                vat_line = f"  VAT {vat_rate}  ${vat_amount}"
+                lines.append(vat_line.rjust(LINE_WIDTH))
+
     lines.append("-" * LINE_WIDTH)
     subtotal = str(state.get("subtotal", "0.00"))
     tax = str(state.get("tax", "0.00"))
@@ -92,6 +100,14 @@ def _render_text(state: dict[str, object]) -> str:
     lines.append(_kv_line("Subtotal", f"${subtotal}"))
     lines.append(_kv_line("Tax", f"${tax}"))
     lines.append(_kv_line("Total", f"${total}"))
+
+    # VAT breakdown by rate bucket (when per-item VAT data is present)
+    vat_buckets = _compute_vat_buckets(items)
+    if vat_buckets:
+        lines.append("-" * LINE_WIDTH)
+        lines.append("VAT breakdown".center(LINE_WIDTH))
+        for rate_display, vat_total in vat_buckets:
+            lines.append(_kv_line(f"  {rate_display}", f"${vat_total}"))
 
     tender = state.get("tender")
     change = state.get("change")
@@ -106,6 +122,51 @@ def _render_text(state: dict[str, object]) -> str:
         lines.append(f"closed: {closed}".center(LINE_WIDTH))
     lines.append("thank you".center(LINE_WIDTH))
     return "\n".join(lines)
+
+
+def _compute_vat_buckets(items: object) -> list[tuple[str, str]]:
+    """Aggregate VAT amounts by rate bucket.
+
+    Returns a list of (rate_display, vat_total) pairs sorted by rate
+    descending. Returns empty list when no per-item VAT data is present
+    (backward compat with pre-VAT receipts).
+    """
+    if not isinstance(items, list):
+        return []
+
+    buckets: dict[str, Decimal] = {}
+    has_vat_data = False
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        if not item.get("taxable"):
+            continue
+        vat_rate = item.get("vat_rate")
+        vat_amount = item.get("vat_amount")
+        if vat_rate is None or vat_amount is None:
+            continue
+        has_vat_data = True
+        rate_key = str(vat_rate)
+        try:
+            amount = to_money(vat_amount)
+        except Exception:
+            continue
+        buckets[rate_key] = buckets.get(rate_key, ZERO) + amount
+
+    if not has_vat_data:
+        return []
+
+    sorted_buckets = sorted(buckets.items(), key=lambda x: _rate_sort_key(x[0]), reverse=True)
+    return [(rate, money_str(amount)) for rate, amount in sorted_buckets]
+
+
+def _rate_sort_key(rate_display: str) -> Decimal:
+    """Extract numeric rate from display string like '15%' or '0.15'."""
+    cleaned = rate_display.rstrip("%")
+    try:
+        return Decimal(cleaned)
+    except Exception:
+        return ZERO
 
 
 def _kv_line(label: str, value: str) -> str:
