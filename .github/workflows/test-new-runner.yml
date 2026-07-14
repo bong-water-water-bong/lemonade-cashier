@@ -16,7 +16,7 @@ jobs:
   test-runner:
     runs-on: ${{ inputs.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Show runner info
         run: |
           echo "Runner: ${{ runner.name }}"
