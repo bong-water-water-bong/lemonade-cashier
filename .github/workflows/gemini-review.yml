@@ -1,7 +1,14 @@
 name: gemini-review
 
 on:
+  pull_request:
+    branches: [main]
   workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to review (leave empty for PR event)"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -14,12 +21,24 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      PR_NUMBER: ${{ github.event.pull_request.number }}
       REPO: ${{ github.repository }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Check PR context
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER="${{ github.event.inputs.pr_number || github.event.pull_request.number }}"
+          if [ -z "$PR_NUMBER" ]; then
+            echo "No PR number provided. This workflow requires either:"
+            echo "  - A pull_request event, or"
+            echo "  - A pr_number input via workflow_dispatch"
+            exit 0
+          fi
+          echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
 
       - name: Collect diff
         env:
